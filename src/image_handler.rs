@@ -36,9 +36,21 @@ fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Commands 
             result.push(command_string.into_bytes())
         }
     }
+    // shuffle all entries
     let mut rng = thread_rng();
     result.shuffle(&mut rng);
-    result
+    // merge 70 pixel commands into one batch commands until there are no pixel commands left
+    let mut combined_results = Vec::new();
+    while !result.is_empty() {
+        let mut current_combined = Vec::new();
+        for _ in 0..70 {
+            if let Some(cmd) = result.pop() {
+                current_combined.extend(cmd)
+            }
+        }
+        combined_results.push(current_combined)
+    }
+    combined_results
 }
 
 fn from_images(images: Vec<DynamicImage>, config: &ImageConfig) -> CommandLib {
