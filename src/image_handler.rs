@@ -26,8 +26,8 @@ fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Commands 
         if pixel.0[3] > 0 {
             let mut rgba = String::new();
             for (i, c) in pixel.0.into_iter().enumerate() {
-                if i < 4 || c != 255 {
-                    rgba += &format!("{:x}", c);
+                if i < 3 || c != 255 {
+                    rgba += &format!("{:02x}", c);
                 }
             }
             let x_pos = x + config.x_offset;
