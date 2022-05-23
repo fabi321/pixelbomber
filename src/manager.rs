@@ -9,7 +9,7 @@ pub fn manage(commands: CommandLib, threads: u32, host: String, fps: f32) {
         let client = Client::connect(&host).expect("Could not connect to host");
         let commands_cloned = commands.clone();
         let (tx, rx) = channel();
-        thread::spawn(|| painter(commands_cloned, rx, client));
+        thread::spawn(|| painter(commands_cloned, rx, client).unwrap());
         handles.push(tx);
     }
     if commands.len() > 1 {
