@@ -2,6 +2,14 @@
 name = "pixelbomber"
 version = "0.1.0"
 edition = "2021"
+license = "GPL-3.0"
+readme = "README.md"
+repository = "https://github.com/fabi321/pixelbomber"
+description = "Insanely fast pixelflut client for images and animations"
+keywords = ["pixelflut", "pixelbomber"]
+categories = [
+    "command-line-utilities",
+]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
