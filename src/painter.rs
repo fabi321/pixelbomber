@@ -8,16 +8,9 @@ pub fn painter(command_lib: CommandLib, rx: Receiver<usize>, mut client: Client)
     // loop over frames
     loop {
         // loop over drawings of a single frame
-        for (i, command) in current_commands.into_iter().enumerate() {
+        for command in current_commands {
             client.send_pixel(command)?;
             client.flush()?;
-            if i % 5 == 4 {
-                if let Ok(id) = rx.try_recv() {
-                    current = id;
-                    current_commands = &command_lib[current];
-                    break;
-                }
-            }
         }
         if let Ok(id) = rx.try_recv() {
             current = id;
