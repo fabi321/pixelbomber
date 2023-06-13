@@ -32,8 +32,10 @@ fn main() {
         .to_string();
     if args.get_flag("feature_detection") {
         let features = feature_detection::feature_detection(&host).unwrap();
-        width = width.min(Some(features.width - x_offset));
-        height = height.min(Some(features.height - y_offset));
+        let max_width = features.width - x_offset;
+        width = Some(width.unwrap_or(max_width).min(max_width));
+        let max_height = features.height - y_offset;
+        height = Some(width.unwrap_or(max_height).min(max_height));
         offset_usage = offset_usage || features.offset;
         gray_usage = gray_usage || features.px_gray;
         println!("Canvas size: {} x {}", features.width, features.height);
