@@ -1,6 +1,10 @@
-use std::{thread::{self, sleep}, sync::mpsc::channel, time::Duration};
+use std::{
+    sync::mpsc::channel,
+    thread::{self, sleep},
+    time::Duration,
+};
 
-use crate::{image_handler::CommandLib, client::Client, painter::painter};
+use crate::{client::Client, image_handler::CommandLib, painter::painter};
 
 pub fn manage(commands: CommandLib, threads: u32, host: String, fps: f32) {
     let mut handles = Vec::new();

@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use image::DynamicImage;
-use rand::{thread_rng, prelude::SliceRandom};
+use rand::{prelude::SliceRandom, thread_rng};
 
 pub type Command = Vec<u8>;
 pub type Commands = Vec<Command>;
@@ -36,10 +36,18 @@ fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Commands 
     let width = cropped_image.width();
     let height = cropped_image.height();
     let mut full_result = Vec::with_capacity((width * height) as usize);
-    let mut offset_result = Vec::with_capacity(((width / CHUNK_SIZE) * (height / CHUNK_SIZE)) as usize);
+    let mut offset_result =
+        Vec::with_capacity(((width / CHUNK_SIZE) * (height / CHUNK_SIZE)) as usize);
     for row in 0..(cropped_image.height() + CHUNK_SIZE - 1) / CHUNK_SIZE {
         for column in 0..(width + CHUNK_SIZE - 1) / CHUNK_SIZE {
-            offset_result.push(format!("OFFSET {} {}\n", column + config.x_offset, row + config.y_offset).into_bytes())
+            offset_result.push(
+                format!(
+                    "OFFSET {} {}\n",
+                    column + config.x_offset,
+                    row + config.y_offset
+                )
+                .into_bytes(),
+            )
         }
     }
     let mut relevant_pixels = 0;
@@ -62,7 +70,9 @@ fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Commands 
             let command_string = format!("PX {} {} {}\n", x_pos, y_pos, rgba);
             full_result.push(command_string.into_bytes());
             let offset_vec = offset_result.get_mut(id_for_px(x, y, width)).unwrap();
-            offset_vec.extend(format!("PX {} {} {}\n", x % CHUNK_SIZE, y % CHUNK_SIZE, rgba).into_bytes());
+            offset_vec.extend(
+                format!("PX {} {} {}\n", x % CHUNK_SIZE, y % CHUNK_SIZE, rgba).into_bytes(),
+            );
             relevant_pixels += 1;
         }
     }
@@ -98,7 +108,10 @@ fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Commands 
     } else {
         "using no optimizations"
     };
-    println!("Processed image, pixel commands bytes: {final_len}, {} bytes per pixel, {optimizations}", final_len as f32 / relevant_pixels as f32);
+    println!(
+        "Processed image, pixel commands bytes: {final_len}, {} bytes per pixel, {optimizations}",
+        final_len as f32 / relevant_pixels as f32
+    );
     final_result
 }
 
@@ -115,7 +128,10 @@ pub fn load(paths: Vec<&str>, config: &ImageConfig) -> CommandLib {
         .map(|path_str| {
             let path = Path::new(path_str);
             if !path.is_file() {
-                panic!("The path \"{}\" either doesn't exist or isn't a file", path_str)
+                panic!(
+                    "The path \"{}\" either doesn't exist or isn't a file",
+                    path_str
+                )
             }
             image::open(path).expect("coudn't load image")
         })

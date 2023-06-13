@@ -1,4 +1,4 @@
-use clap::{Command, Arg, ArgMatches, ArgAction};
+use clap::{Arg, ArgAction, ArgMatches, Command};
 
 pub fn parse() -> ArgMatches {
     // Handle/parse arguments
@@ -76,11 +76,19 @@ pub fn parse() -> ArgMatches {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("feature_detection")
+                .short('f')
+                .long("--feature-detection")
+                .help("disable automatic detection of supported features (def: true)")
+                .display_order(8)
+                .action(ArgAction::SetFalse),
+        )
+        .arg(
             Arg::with_name("offset")
                 .short('o')
                 .long("offset")
                 .help("Whether or not the offset command is supported by the server (def: false)")
-                .display_order(8)
+                .display_order(9)
                 .action(ArgAction::SetTrue),
         )
         .arg(
@@ -88,7 +96,7 @@ pub fn parse() -> ArgMatches {
                 .short('g')
                 .long("gray")
                 .help("Whether or not the {PX x y gg} command is supported by the server (def: false)")
-                .display_order(9)
+                .display_order(10)
                 .action(ArgAction::SetTrue),
         )
         .get_matches()

@@ -1,6 +1,6 @@
-use std::{sync::mpsc::Receiver, io::Result};
+use std::{io::Result, sync::mpsc::Receiver};
 
-use crate::{image_handler::CommandLib, client::Client};
+use crate::{client::Client, image_handler::CommandLib};
 
 pub fn painter(command_lib: CommandLib, rx: Receiver<usize>, mut client: Client) -> Result<()> {
     let mut current = 0;
