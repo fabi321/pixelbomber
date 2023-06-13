@@ -27,6 +27,9 @@ fn id_for_px(x: u32, y: u32, width: u32) -> usize {
 }
 
 fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Commands {
+    if config.width.is_some() != config.height.is_some() {
+        println!("Warning: Only setting width or height doesn't crop the image!")
+    }
     let cropped_image = if let (Some(width), Some(height)) = (config.width, config.height) {
         image.crop(0, 0, width, height)
     } else {
