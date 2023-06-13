@@ -11,13 +11,17 @@ fn main() {
     let args = arg_handler::parse();
     let width = args.value_of("width").map(|w| w.parse().expect("Could not parse width"));
     let height = args.value_of("height").map(|h| h.parse().expect("Could not parse height"));
-    let x_offset = args.value_of("x").map(|x| x.parse().expect("Could not parse x offsett")).unwrap_or(0);
-    let y_offset = args.value_of("y").map(|y| y.parse().expect("Could not parse y offsett")).unwrap_or(0);
+    let x_offset = args.value_of("x").map(|x| x.parse().expect("Could not parse x offset")).unwrap_or(0);
+    let y_offset = args.value_of("y").map(|y| y.parse().expect("Could not parse y offset")).unwrap_or(0);
+    let offset_usage = args.get_flag("offset");
+    let gray_usage = args.get_flag("gray");
     let image_config = ImageConfig {
         width,
         height,
         x_offset,
         y_offset,
+        offset_usage,
+        gray_usage,
     };
     let paths = args.values_of("image").expect("Please specify an image paths").collect();
     let command_lib = image_handler::load(paths, &image_config);

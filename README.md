@@ -10,3 +10,4 @@ This client is largely inspired by [pixelpwnr](https://github.com/timvisee/pixel
 - Faster than [pixelpwnr](https://github.com/timvisee/pixelpwnr) (in my case by more than a Factor of 8)
 - Linux, Windows and MacOS
 - Same cli as pixelpwnr
+- Support for both gray pixel command as well as offset command, enable with --offset and --gray

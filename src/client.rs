@@ -21,10 +21,12 @@ impl Client {
         Ok(Client::new(TcpStream::connect(host)?))
     }
 
+    #[inline(always)]
     pub fn send_pixel(&mut self, command: &Command) -> Result<()> {
         self.stream.write_all(command)
     }
 
+    #[inline(always)]
     pub fn flush(&mut self) -> Result<()> {
         self.stream.flush()
     }

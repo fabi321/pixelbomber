@@ -1,4 +1,4 @@
-use clap::{Command, Arg, ArgMatches};
+use clap::{Command, Arg, ArgMatches, ArgAction};
 
 pub fn parse() -> ArgMatches {
     // Handle/parse arguments
@@ -74,6 +74,22 @@ pub fn parse() -> ArgMatches {
                 .help("Frames per second with multiple images (def: 1)")
                 .display_order(7)
                 .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("offset")
+                .short('o')
+                .long("offset")
+                .help("Whether or not the offset command is supported by the server (def: false)")
+                .display_order(8)
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::with_name("gray")
+                .short('g')
+                .long("gray")
+                .help("Whether or not the {PX x y gg} command is supported by the server (def: false)")
+                .display_order(9)
+                .action(ArgAction::SetTrue),
         )
         .get_matches()
 }
