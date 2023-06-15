@@ -83,12 +83,17 @@ fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Command {
     full_result.shuffle(&mut rng);
     offset_result.shuffle(&mut rng);
     let combined_full_results: Command = full_result.into_iter().flatten().collect();
-    let combined_offset_result: Command = offset_result.into_iter().filter(|v| v.len() > 18).flatten().collect();
-    let final_result = if !config.offset_usage || combined_full_results.len() < combined_offset_result.len() {
-        combined_full_results
-    } else {
-        combined_offset_result
-    };
+    let combined_offset_result: Command = offset_result
+        .into_iter()
+        .filter(|v| v.len() > 18)
+        .flatten()
+        .collect();
+    let final_result =
+        if !config.offset_usage || combined_full_results.len() < combined_offset_result.len() {
+            combined_full_results
+        } else {
+            combined_offset_result
+        };
     let optimizations = if config.gray_usage && config.offset_usage {
         "using both gray and offset optimizations"
     } else if config.gray_usage {
