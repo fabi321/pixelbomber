@@ -4,8 +4,7 @@ use image::DynamicImage;
 use rand::{prelude::SliceRandom, thread_rng};
 
 pub type Command = Vec<u8>;
-pub type Commands = Vec<Command>;
-pub type CommandLib = Vec<Commands>;
+pub type CommandLib = Vec<Command>;
 
 pub struct ImageConfig {
     pub width: Option<u32>,
@@ -26,7 +25,7 @@ fn id_for_px(x: u32, y: u32, width: u32) -> usize {
     id_for_chunk_x_y(x / CHUNK_SIZE, y / CHUNK_SIZE, width)
 }
 
-fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Commands {
+fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Command {
     if config.width.is_some() != config.height.is_some() {
         println!("Warning: Only setting width or height doesn't crop the image!")
     }
@@ -83,24 +82,12 @@ fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Commands 
     let mut rng = thread_rng();
     full_result.shuffle(&mut rng);
     offset_result.shuffle(&mut rng);
-    // merge 70 pixel commands into one batch commands until there are no pixel commands left
-    let mut combined_results = Vec::new();
-    while !full_result.is_empty() {
-        let mut current_combined = Vec::new();
-        for _ in 0..70 {
-            if let Some(cmd) = full_result.pop() {
-                current_combined.extend(cmd)
-            }
-        }
-        combined_results.push(current_combined)
-    }
-    offset_result = offset_result.into_iter().filter(|v| v.len() > 18).collect();
-    let combined_len: usize = combined_results.iter().map(|v| v.len()).sum();
-    let offset_len: usize = offset_result.iter().map(|v| v.len()).sum();
-    let (final_result, final_len) = if combined_len < offset_len || !config.offset_usage {
-        (combined_results, combined_len)
+    let combined_full_results: Command = full_result.into_iter().flatten().collect();
+    let combined_offset_result: Command = offset_result.into_iter().filter(|v| v.len() > 18).flatten().collect();
+    let final_result = if !config.offset_usage || combined_full_results.len() < combined_offset_result.len() {
+        combined_full_results
     } else {
-        (offset_result, offset_len)
+        combined_offset_result
     };
     let optimizations = if config.gray_usage && config.offset_usage {
         "using both gray and offset optimizations"
@@ -112,8 +99,9 @@ fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Commands 
         "using no optimizations"
     };
     println!(
-        "Processed image, pixel commands bytes: {final_len}, {} bytes per pixel, {optimizations}",
-        final_len as f32 / relevant_pixels as f32
+        "Processed image, pixel commands bytes: {}, {} bytes per pixel, {optimizations}",
+        final_result.len(),
+        final_result.len() as f32 / relevant_pixels as f32
     );
     final_result
 }
