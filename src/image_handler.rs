@@ -6,12 +6,21 @@ use rand::{prelude::SliceRandom, thread_rng};
 pub type Command = Vec<u8>;
 pub type CommandLib = Vec<Command>;
 
+/// Configuration for how to place a picture, and what features to use
 pub struct ImageConfig {
+    /// Largest width of the image.
+    /// NOTE: this needs to be `canvas_width - x_offset` to crop at the canvas edges
     pub width: Option<u32>,
+    /// Largest height of the image.
+    /// NOTE: this needs to be `canvas_height - y_offset` to crop at the canvas edges
     pub height: Option<u32>,
+    /// At what x offset to place the image
     pub x_offset: u32,
+    /// At what y offset to place the image
     pub y_offset: u32,
+    /// If the `OFFSET` command should be used
     pub offset_usage: bool,
+    /// If the `PX x y gg` command should be used
     pub gray_usage: bool,
 }
 
@@ -118,6 +127,7 @@ fn from_images(images: Vec<DynamicImage>, config: &ImageConfig) -> CommandLib {
         .collect()
 }
 
+/// Load image(s) from paths, parsing them into ready to use command chains
 pub fn load(paths: Vec<&str>, config: &ImageConfig) -> CommandLib {
     let images = paths
         .into_iter()

@@ -1,6 +1,6 @@
 [package]
 name = "pixelbomber"
-version = "0.2.3"
+version = "0.3.0"
 edition = "2021"
 license = "GPL-3.0"
 readme = "README.md"
@@ -18,3 +18,11 @@ image = "0.24"
 rand = "0.8"
 bufstream = "0.1"
 clap = "3"
+
+[lib]
+name = "pixelbomber"
+path = "src/lib.rs"
+
+[[bin]]
+name = "pixelbomber"
+path = "src/main.rs"

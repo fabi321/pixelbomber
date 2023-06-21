@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use crate::{client::Client, image_handler::CommandLib, painter::painter};
+use pixelbomber::{Client, image_handler::CommandLib, painter};
 
 pub fn manage(commands: CommandLib, threads: u32, host: String, fps: f32) {
     let mut handles = Vec::new();
