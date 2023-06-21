@@ -49,6 +49,7 @@ fn main() {
         y_offset,
         offset_usage,
         gray_usage,
+        shuffle: true,
     };
     let paths = args
         .values_of("image")

@@ -22,6 +22,8 @@ pub struct ImageConfig {
     pub offset_usage: bool,
     /// If the `PX x y gg` command should be used
     pub gray_usage: bool,
+    /// Shuffle draw commands (RECOMMENDED)
+    pub shuffle: bool,
 }
 
 const CHUNK_SIZE: u32 = 10;
@@ -87,10 +89,12 @@ fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Command {
             relevant_pixels += 1;
         }
     }
-    // shuffle all entries
-    let mut rng = thread_rng();
-    full_result.shuffle(&mut rng);
-    offset_result.shuffle(&mut rng);
+    if config.shuffle {
+        // shuffle all entries
+        let mut rng = thread_rng();
+        full_result.shuffle(&mut rng);
+        offset_result.shuffle(&mut rng);
+    }
     let combined_full_results: Command = full_result.into_iter().flatten().collect();
     let combined_offset_result: Command = offset_result
         .into_iter()
