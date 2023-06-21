@@ -6,6 +6,87 @@ use rand::{prelude::SliceRandom, thread_rng};
 pub type Command = Vec<u8>;
 pub type CommandLib = Vec<Command>;
 
+pub struct ImageConfigBuilder {
+    width: Option<u32>,
+    height: Option<u32>,
+    x_offset: u32,
+    y_offset: u32,
+    offset_usage: bool,
+    gray_usage: bool,
+    shuffle: bool,
+}
+
+impl ImageConfigBuilder {
+    pub fn new() -> ImageConfigBuilder {
+        ImageConfigBuilder {
+            width: None,
+            height: None,
+            x_offset: 0,
+            y_offset: 0,
+            offset_usage: false,
+            gray_usage: false,
+            shuffle: true,
+        }
+    }
+
+    /// Largest width of the image.
+    /// NOTE: this needs to be `canvas_width - x_offset` to crop at the canvas edges
+    pub fn width(mut self, width: u32) -> ImageConfigBuilder {
+        self.width = Some(width);
+        self
+    }
+
+    /// Largest height of the image.
+    /// NOTE: this needs to be `canvas_height - y_offset` to crop at the canvas edges
+    pub fn height(mut self, height: u32) -> ImageConfigBuilder {
+        self.height = Some(height);
+        self
+    }
+
+    /// At what x offset to place the image
+    pub fn x_offset(mut self, x_offset: u32) -> ImageConfigBuilder {
+        self.x_offset = x_offset;
+        self
+    }
+
+    /// At what y offset to place the image
+    pub fn y_offset(mut self, y_offset: u32) -> ImageConfigBuilder {
+        self.y_offset = y_offset;
+        self
+    }
+
+    /// If the `OFFSET` command should be used
+    pub fn offset_usage(mut self, offset_usage: bool) -> ImageConfigBuilder {
+        self.offset_usage = offset_usage;
+        self
+    }
+
+    /// If the `PX x y gg` command should be used
+    pub fn gray_usage(mut self, gray_usage: bool) -> ImageConfigBuilder {
+        self.gray_usage = gray_usage;
+        self
+    }
+
+    /// Shuffle draw commands (RECOMMENDED)
+    pub fn shuffle(mut self, shuffle: bool) -> ImageConfigBuilder {
+        self.shuffle = shuffle;
+        self
+    }
+
+    /// Build the image config
+    pub fn build(self) -> ImageConfig {
+        ImageConfig {
+            width: self.width,
+            height: self.height,
+            x_offset: self.x_offset,
+            y_offset: self.y_offset,
+            offset_usage: self.offset_usage,
+            gray_usage: self.gray_usage,
+            shuffle: self.shuffle,
+        }
+    }
+}
+
 /// Configuration for how to place a picture, and what features to use
 pub struct ImageConfig {
     /// Largest width of the image.

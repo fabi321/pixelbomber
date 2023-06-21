@@ -5,4 +5,3 @@ mod painter;
 
 pub use client::Client;
 pub use painter::painter;
-

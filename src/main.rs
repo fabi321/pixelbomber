@@ -1,5 +1,5 @@
-use pixelbomber::{image_handler, feature_detection};
 use manager::manage;
+use pixelbomber::{feature_detection, image_handler};
 
 mod arg_handler;
 mod manager;
