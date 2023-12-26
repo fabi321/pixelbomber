@@ -1,6 +1,6 @@
 [package]
 name = "pixelbomber"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2021"
 license = "GPL-3.0"
 readme = "README.md"
@@ -17,7 +17,7 @@ categories = [
 image = "0.24"
 rand = "0.8"
 bufstream = "0.1"
-clap = "3"
+clap = "4"
 
 [lib]
 name = "pixelbomber"
