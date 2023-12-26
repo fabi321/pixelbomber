@@ -24,6 +24,7 @@ fn main() {
         .value_of("y")
         .map(|y| y.parse().expect("Could not parse y offset"))
         .unwrap_or(0);
+    let alpha_usage = args.get_flag("alpha");
     let mut offset_usage = args.get_flag("offset");
     let mut gray_usage = args.get_flag("gray");
     let host = args
@@ -53,6 +54,7 @@ fn main() {
         y_offset,
         offset_usage,
         gray_usage,
+        alpha_usage,
     };
     let paths = args
         .values_of("image")

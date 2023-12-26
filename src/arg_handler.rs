@@ -99,5 +99,13 @@ pub fn parse() -> ArgMatches {
                 .display_order(10)
                 .action(ArgAction::SetTrue),
         )
+        .arg(
+            Arg::with_name("alpha")
+                .short('a')
+                .long("alpha")
+                .help("Whether or not the alpha value is used for pixels with alpha > 0 and < 255")
+                .display_order(11)
+                .action(ArgAction::SetTrue)
+        )
         .get_matches()
 }
