@@ -216,16 +216,9 @@ fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Command {
     final_result
 }
 
-fn from_images(images: Vec<DynamicImage>, config: &ImageConfig) -> CommandLib {
-    images
-        .into_iter()
-        .map(|image| image_to_commands(image, config))
-        .collect()
-}
-
 /// Load image(s) from paths, parsing them into ready to use command chains
 pub fn load(paths: Vec<&str>, config: &ImageConfig) -> CommandLib {
-    let images = paths
+    let images: Vec<_> = paths
         .into_iter()
         .map(|path_str| {
             let path = Path::new(path_str);
@@ -238,5 +231,8 @@ pub fn load(paths: Vec<&str>, config: &ImageConfig) -> CommandLib {
             image::open(path).expect("coudn't load image")
         })
         .collect();
-    from_images(images, config)
+    images
+        .into_iter()
+        .map(|image| image_to_commands(image, config))
+        .collect()
 }
