@@ -9,6 +9,8 @@ use crate::image_handler::Command;
 
 const CMD_READ_BUFFER_SIZE: usize = 1024;
 
+/// A pixelflut client, supporting most pixelflut commands
+/// This is a sync implementation
 pub struct Client {
     stream: BufStream<TcpStream>,
 }

@@ -2,6 +2,7 @@ use std::{io::Result, sync::mpsc::Receiver};
 
 use crate::{client::Client, image_handler::CommandLib};
 
+/// Paint an image to the canvas, can receive image ids to change between frames of an animation
 pub fn painter(command_lib: CommandLib, rx: Receiver<usize>, mut client: Client) -> Result<()> {
     let mut current = 0;
     let mut current_commands = &command_lib[current];

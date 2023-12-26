@@ -1,12 +1,8 @@
-use image_handler::ImageConfig;
 use manager::manage;
+use pixelbomber::{feature_detection, image_handler};
 
 mod arg_handler;
-mod client;
-mod feature_detection;
-mod image_handler;
 mod manager;
-mod painter;
 
 fn main() {
     let args = arg_handler::parse();
@@ -47,7 +43,7 @@ fn main() {
             println!("OFFSET command supported")
         }
     }
-    let image_config = ImageConfig {
+    let image_config = image_handler::ImageConfig {
         width,
         height,
         x_offset,
@@ -55,6 +51,7 @@ fn main() {
         offset_usage,
         gray_usage,
         alpha_usage,
+        shuffle: true,
     };
     let paths = args
         .values_of("image")

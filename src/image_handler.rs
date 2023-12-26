@@ -6,14 +6,116 @@ use rand::{prelude::SliceRandom, thread_rng};
 pub type Command = Vec<u8>;
 pub type CommandLib = Vec<Command>;
 
+pub struct ImageConfigBuilder {
+    width: Option<u32>,
+    height: Option<u32>,
+    x_offset: u32,
+    y_offset: u32,
+    offset_usage: bool,
+    gray_usage: bool,
+    alpha_usage: bool,
+    shuffle: bool,
+}
+
+impl ImageConfigBuilder {
+    pub fn new() -> ImageConfigBuilder {
+        ImageConfigBuilder {
+            width: None,
+            height: None,
+            x_offset: 0,
+            y_offset: 0,
+            offset_usage: false,
+            gray_usage: false,
+            alpha_usage: false,
+            shuffle: true,
+        }
+    }
+
+    /// Largest width of the image.
+    /// NOTE: this needs to be `canvas_width - x_offset` to crop at the canvas edges
+    pub fn width(mut self, width: u32) -> ImageConfigBuilder {
+        self.width = Some(width);
+        self
+    }
+
+    /// Largest height of the image.
+    /// NOTE: this needs to be `canvas_height - y_offset` to crop at the canvas edges
+    pub fn height(mut self, height: u32) -> ImageConfigBuilder {
+        self.height = Some(height);
+        self
+    }
+
+    /// At what x offset to place the image
+    pub fn x_offset(mut self, x_offset: u32) -> ImageConfigBuilder {
+        self.x_offset = x_offset;
+        self
+    }
+
+    /// At what y offset to place the image
+    pub fn y_offset(mut self, y_offset: u32) -> ImageConfigBuilder {
+        self.y_offset = y_offset;
+        self
+    }
+
+    /// If the `OFFSET` command should be used
+    pub fn offset_usage(mut self, offset_usage: bool) -> ImageConfigBuilder {
+        self.offset_usage = offset_usage;
+        self
+    }
+
+    /// If the `PX x y gg` command should be used
+    pub fn gray_usage(mut self, gray_usage: bool) -> ImageConfigBuilder {
+        self.gray_usage = gray_usage;
+        self
+    }
+
+    /// If the `PX x y rrggbbaa` command should be used (or alpha ignored)
+    pub fn alpha_usage(mut self, alpha_usage: bool) -> ImageConfigBuilder {
+        self.gray_usage = alpha_usage;
+        self
+    }
+
+    /// Shuffle draw commands (RECOMMENDED)
+    pub fn shuffle(mut self, shuffle: bool) -> ImageConfigBuilder {
+        self.shuffle = shuffle;
+        self
+    }
+
+    /// Build the image config
+    pub fn build(self) -> ImageConfig {
+        ImageConfig {
+            width: self.width,
+            height: self.height,
+            x_offset: self.x_offset,
+            y_offset: self.y_offset,
+            offset_usage: self.offset_usage,
+            gray_usage: self.gray_usage,
+            alpha_usage: self.alpha_usage,
+            shuffle: self.shuffle,
+        }
+    }
+}
+
+/// Configuration for how to place a picture, and what features to use
 pub struct ImageConfig {
+    /// Largest width of the image.
+    /// NOTE: this needs to be `canvas_width - x_offset` to crop at the canvas edges
     pub width: Option<u32>,
+    /// Largest height of the image.
+    /// NOTE: this needs to be `canvas_height - y_offset` to crop at the canvas edges
     pub height: Option<u32>,
+    /// At what x offset to place the image
     pub x_offset: u32,
+    /// At what y offset to place the image
     pub y_offset: u32,
+    /// If the `OFFSET` command should be used
     pub offset_usage: bool,
+    /// If the `PX x y gg` command should be used
     pub gray_usage: bool,
+    /// Use alpha data (not recommended)
     pub alpha_usage: bool,
+    /// Shuffle draw commands (RECOMMENDED)
+    pub shuffle: bool,
 }
 
 const CHUNK_SIZE: u32 = 10;
@@ -79,20 +181,24 @@ fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Command {
             relevant_pixels += 1;
         }
     }
-    // shuffle all entries
-    let mut rng = thread_rng();
-    full_result.shuffle(&mut rng);
-    offset_result.shuffle(&mut rng);
-    // merge pixel commands into single vec
-    let combined_results: Vec<u8> = full_result.into_iter().flatten().collect();
-    let offset_result: Vec<u8> = offset_result.into_iter().filter(|v| v.len() > 18).flatten().collect();
-    let combined_len: usize = combined_results.len();
-    let offset_len: usize = offset_result.len();
-    let (final_result, final_len) = if combined_len < offset_len || !config.offset_usage {
-        (combined_results, combined_len)
-    } else {
-        (offset_result, offset_len)
-    };
+    if config.shuffle {
+        // shuffle all entries
+        let mut rng = thread_rng();
+        full_result.shuffle(&mut rng);
+        offset_result.shuffle(&mut rng);
+    }
+    let combined_full_results: Command = full_result.into_iter().flatten().collect();
+    let combined_offset_result: Command = offset_result
+        .into_iter()
+        .filter(|v| v.len() > 18)
+        .flatten()
+        .collect();
+    let final_result =
+        if !config.offset_usage || combined_full_results.len() < combined_offset_result.len() {
+            combined_full_results
+        } else {
+            combined_offset_result
+        };
     let optimizations = if config.gray_usage && config.offset_usage {
         "using both gray and offset optimizations"
     } else if config.gray_usage {
@@ -103,8 +209,9 @@ fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Command {
         "using no optimizations"
     };
     println!(
-        "Processed image, pixel commands bytes: {final_len}, {} bytes per pixel, {optimizations}",
-        final_len as f32 / relevant_pixels as f32
+        "Processed image, pixel commands bytes: {}, {} bytes per pixel, {optimizations}",
+        final_result.len(),
+        final_result.len() as f32 / relevant_pixels as f32
     );
     final_result
 }
@@ -116,6 +223,7 @@ fn from_images(images: Vec<DynamicImage>, config: &ImageConfig) -> CommandLib {
         .collect()
 }
 
+/// Load image(s) from paths, parsing them into ready to use command chains
 pub fn load(paths: Vec<&str>, config: &ImageConfig) -> CommandLib {
     let images = paths
         .into_iter()
