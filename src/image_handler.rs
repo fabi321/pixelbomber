@@ -164,11 +164,13 @@ fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Command {
                     rgba += &format!("{:02x}", c);
                 }
             }
-            if config.gray_usage && pixel.0[0] == pixel.0[1] && pixel.0[1] == pixel.0[2] {
+            // alpha is not supported if gray is used
+            if config.gray_usage
+                && (!config.alpha_usage || pixel.0[3] == 255)
+                && pixel.0[0] == pixel.0[1]
+                && pixel.0[1] == pixel.0[2]
+            {
                 rgba = format!("{:02x}", pixel.0[0]);
-                if pixel.0[3] != 255 && config.alpha_usage {
-                    rgba += &format!("{:02x}", pixel.0[3]);
-                }
             }
             let x_pos = x + config.x_offset;
             let y_pos = y + config.y_offset;
