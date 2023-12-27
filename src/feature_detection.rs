@@ -24,9 +24,16 @@ pub fn feature_detection(host: &str) -> Result<Features> {
     let mut offset = false;
     let mut px_gray = false;
     for line in help_text.split('\n') {
-        if line.to_lowercase().starts_with("offset") {
+        let lowered = line.to_lowercase();
+        let trimmed = lowered.trim_start();
+        // breakwater format
+        if trimmed.starts_with("offset") {
             offset = true
-        } else if line.to_lowercase().starts_with("px x y gg") {
+        // breakwater format
+        } else if trimmed.starts_with("px x y gg") {
+            px_gray = true
+        // wellenbrecher format
+        } else if trimmed.starts_with("grayscale") {
             px_gray = true
         }
     }
