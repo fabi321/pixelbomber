@@ -156,32 +156,30 @@ fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Command {
         }
     }
     let mut relevant_pixels = 0;
-    for (x, y, pixel) in rgba_image.enumerate_pixels() {
-        if pixel.0[3] > 0 {
-            let mut rgba = String::new();
-            for (i, c) in pixel.0.into_iter().enumerate() {
-                if i < 3 || c != 255 && config.alpha_usage {
-                    rgba += &format!("{:02x}", c);
-                }
+    for (x, y, pixel) in rgba_image.enumerate_pixels().filter(|(_, _, p)| p.0[3] > 0) {
+        let mut rgba = String::new();
+        for (i, c) in pixel.0.into_iter().enumerate() {
+            if i < 3 || c != 255 && config.alpha_usage {
+                rgba += &format!("{:02x}", c);
             }
-            // alpha is not supported if gray is used
-            if config.gray_usage
-                && (!config.alpha_usage || pixel.0[3] == 255)
-                && pixel.0[0] == pixel.0[1]
-                && pixel.0[1] == pixel.0[2]
-            {
-                rgba = format!("{:02x}", pixel.0[0]);
-            }
-            let x_pos = x + config.x_offset;
-            let y_pos = y + config.y_offset;
-            let command_string = format!("PX {} {} {}\n", x_pos, y_pos, rgba);
-            full_result.push(command_string.into_bytes());
-            let offset_vec = offset_result.get_mut(id_for_px(x, y, width)).unwrap();
-            offset_vec.extend(
-                format!("PX {} {} {}\n", x % CHUNK_SIZE, y % CHUNK_SIZE, rgba).into_bytes(),
-            );
-            relevant_pixels += 1;
         }
+        // alpha is not supported if gray is used
+        if config.gray_usage
+            && (!config.alpha_usage || pixel.0[3] == 255)
+            && pixel.0[0] == pixel.0[1]
+            && pixel.0[1] == pixel.0[2]
+        {
+            rgba = format!("{:02x}", pixel.0[0]);
+        }
+        let x_pos = x + config.x_offset;
+        let y_pos = y + config.y_offset;
+        let command_string = format!("PX {} {} {}\n", x_pos, y_pos, rgba);
+        full_result.push(command_string.into_bytes());
+        let offset_vec = offset_result.get_mut(id_for_px(x, y, width)).unwrap();
+        offset_vec.extend(
+            format!("PX {} {} {}\n", x % CHUNK_SIZE, y % CHUNK_SIZE, rgba).into_bytes(),
+        );
+        relevant_pixels += 1;
     }
     if config.shuffle {
         // shuffle all entries
