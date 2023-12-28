@@ -148,8 +148,8 @@ fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Command {
             offset_result.push(
                 format!(
                     "OFFSET {} {}\n",
-                    column + config.x_offset,
-                    row + config.y_offset
+                    column * CHUNK_SIZE + config.x_offset,
+                    row * CHUNK_SIZE + config.y_offset
                 )
                 .into_bytes(),
             )
