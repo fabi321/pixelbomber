@@ -3,12 +3,14 @@ use std::{
     thread::{self, sleep},
     time::Duration,
 };
+use std::sync::Arc;
 
 use pixelbomber::{image_handler::CommandLib, painter, Client};
 
 pub fn manage(commands: CommandLib, threads: u32, host: String, fps: f32) {
     let mut handles = Vec::new();
     let mut thread_handles = Vec::new();
+    let commands = Arc::new(commands);
     println!("Starting threads");
     for _ in 0..threads {
         let client = Client::connect(&host).expect("Could not connect to host");

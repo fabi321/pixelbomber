@@ -1,9 +1,10 @@
 use std::{io::Result, sync::mpsc::Receiver};
+use std::sync::Arc;
 
 use crate::{client::Client, image_handler::CommandLib};
 
 /// Paint an image to the canvas, can receive image ids to change between frames of an animation
-pub fn painter(command_lib: CommandLib, rx: Receiver<usize>, mut client: Client) -> Result<()> {
+pub fn painter(command_lib: Arc<CommandLib>, rx: Receiver<usize>, mut client: Client) -> Result<()> {
     let mut current_commands = &command_lib[0];
     // loop over frames
     loop {
