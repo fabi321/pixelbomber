@@ -1,111 +1,54 @@
-use clap::{Arg, ArgAction, ArgMatches, Command};
+use clap::Parser;
 
-pub fn parse() -> ArgMatches {
-    // Handle/parse arguments
-    Command::new("pixelbomber")
-        .arg(
-            Arg::with_name("HOST")
-                .help("The host to pwn \"host:port\"")
-                .required(true)
-                .index(1),
-        )
-        .arg(
-            Arg::with_name("image")
-                .short('i')
-                .long("image")
-                .alias("images")
-                .value_name("PATH")
-                .help("Image paths")
-                .required(true)
-                .multiple(true)
-                .display_order(1)
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("width")
-                .short('w')
-                .long("width")
-                .value_name("PIXELS")
-                .help("Draw width (def: screen width)")
-                .display_order(2)
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("height")
-                .short('h')
-                .long("height")
-                .value_name("PIXELS")
-                .help("Draw height (def: screen height)")
-                .display_order(3)
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("x")
-                .short('x')
-                .value_name("PIXELS")
-                .help("Draw X offset (def: 0)")
-                .display_order(4)
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("y")
-                .short('y')
-                .value_name("PIXELS")
-                .help("Draw Y offset (def: 0)")
-                .display_order(5)
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("count")
-                .short('c')
-                .long("count")
-                .alias("thread")
-                .alias("threads")
-                .value_name("COUNT")
-                .help("Number of concurrent threads (def: CPUs)")
-                .display_order(6)
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("fps")
-                .short('r')
-                .long("fps")
-                .value_name("RATE")
-                .help("Frames per second with multiple images (def: 1)")
-                .display_order(7)
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("feature_detection")
-                .short('f')
-                .long("--feature-detection")
-                .help("disable automatic detection of supported features (def: true)")
-                .display_order(8)
-                .action(ArgAction::SetFalse),
-        )
-        .arg(
-            Arg::with_name("offset")
-                .short('o')
-                .long("offset")
-                .help("Whether or not the offset command is supported by the server (def: false)")
-                .display_order(9)
-                .action(ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::with_name("gray")
-                .short('g')
-                .long("gray")
-                .help("Whether or not the {PX x y gg} command is supported by the server (def: false)")
-                .display_order(10)
-                .action(ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::with_name("alpha")
-                .short('a')
-                .long("alpha")
-                .help("Whether or not the alpha value is used for pixels with alpha > 0 and < 255")
-                .display_order(11)
-                .action(ArgAction::SetTrue)
-        )
-        .get_matches()
+#[derive(Debug, Parser)]
+pub struct Args {
+    /// The host to pwn "host:port"
+    pub host: String,
+
+    /// Image paths
+    pub image: Vec<String>,
+
+    /// Draw width [default: screen width]
+    #[arg(short, long, value_name = "PIXELS")]
+    pub width: Option<u32>,
+
+    /// Draw height [default: screen height]
+    #[arg(short = 'q', long, value_name = "PIXELS")]
+    pub height: Option<u32>,
+
+    /// Draw X offset
+    #[arg(short, long, value_name = "PIXELS", default_value = "0")]
+    pub x: u32,
+
+    /// Draw Y offset
+    #[arg(short, long, value_name = "PIXELS", default_value = "0")]
+    pub y: u32,
+
+    /// Number of concurrent threads [default: CPUs]
+    #[arg(short, long, value_name = "THREADS")]
+    pub count: Option<u32>,
+
+    /// Frames per second with multiple images
+    #[arg(short = 'r', long, value_name = "FPS", default_value = "1")]
+    pub fps: f32,
+
+    /// Disable automatic detection of supported features
+    #[arg(short, long)]
+    pub feature_detection: bool,
+
+    /// Enable usage of offset command
+    #[arg(short, long)]
+    pub offset: bool,
+
+    /// Enable usage of `PX X Y gg` command
+    #[arg(short, long)]
+    pub gray: bool,
+
+    /// Enable usage of alpha command for pixels with alpha > 0 and < 255
+    #[arg(short, long)]
+    pub alpha: bool,
+}
+
+pub fn parse() -> Args {
+    Args::parse()
 }
