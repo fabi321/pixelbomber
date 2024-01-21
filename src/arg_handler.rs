@@ -47,6 +47,10 @@ pub struct Args {
     /// Enable usage of alpha command for pixels with alpha > 0 and < 255
     #[arg(short, long)]
     pub alpha: bool,
+
+    /// Bind address to use for communication
+    #[arg(short, long)]
+    pub bind_addr: Option<String>,
 }
 
 pub fn parse() -> Args {

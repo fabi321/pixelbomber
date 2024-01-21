@@ -1,8 +1,11 @@
 use manager::manage;
 use pixelbomber::{feature_detection, image_handler};
+use crate::host::Host;
 
 mod arg_handler;
 mod manager;
+
+mod host;
 
 fn main() {
     let args = arg_handler::parse();
@@ -10,8 +13,9 @@ fn main() {
     let mut height = args.height;
     let mut offset_usage = args.offset;
     let mut gray_usage = args.gray;
-    if args.feature_detection {
-        let features = feature_detection::feature_detection(&args.host).unwrap();
+    let host = Host::new(args.host, args.bind_addr).unwrap();
+    if !args.feature_detection {
+        let features = feature_detection::feature_detection(host.new_stream().unwrap()).unwrap();
         let max_width = features.width - args.x;
         width = Some(width.unwrap_or(max_width).min(max_width));
         let max_height = features.height - args.y;
@@ -41,6 +45,6 @@ fn main() {
         return;
     }
     let paths = args.image.iter().map(|v| v.as_str()).collect();
-    let command_lib = image_handler::load(paths, &image_config);
-    manage(command_lib, args.count.unwrap_or(4), args.host, args.fps);
+    let command_lib = image_handler::load(paths, image_config);
+    manage(command_lib, args.count.unwrap_or(4), host, args.fps);
 }

@@ -97,6 +97,7 @@ impl ImageConfigBuilder {
 }
 
 /// Configuration for how to place a picture, and what features to use
+#[derive(Copy, Clone)]
 pub struct ImageConfig {
     /// Largest width of the image.
     /// NOTE: this needs to be `canvas_width - x_offset` to crop at the canvas edges
@@ -128,7 +129,7 @@ fn id_for_px(x: u32, y: u32, width: u32) -> usize {
     id_for_chunk_x_y(x / CHUNK_SIZE, y / CHUNK_SIZE, width)
 }
 
-fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Command {
+fn image_to_commands(mut image: DynamicImage, config: ImageConfig) -> Command {
     if config.width.is_some() != config.height.is_some() {
         println!("Warning: Only setting width or height doesn't crop the image!")
     }
@@ -217,7 +218,7 @@ fn image_to_commands(mut image: DynamicImage, config: &ImageConfig) -> Command {
 }
 
 /// Load image(s) from paths, parsing them into ready to use command chains
-pub fn load(paths: Vec<&str>, config: &ImageConfig) -> CommandLib {
+pub fn load(paths: Vec<&str>, config: ImageConfig) -> CommandLib {
     let images: Vec<_> = paths
         .into_iter()
         .map(|path_str| {

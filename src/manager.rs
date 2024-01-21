@@ -7,28 +7,31 @@ use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 
 use pixelbomber::{image_handler::CommandLib, painter, Client};
+use crate::host::Host;
 
-fn recreate_connection(host: Arc<String>, commands: Arc<CommandLib>, rx: Receiver<usize>) {
+fn recreate_connection(host: Host, commands: Arc<CommandLib>, rx: Receiver<usize>) {
     loop {
-        if let Ok(client) = Client::connect(host.as_str()) {
+        if let Ok(stream) = host.new_stream() {
+            let client = Client::new(stream);
             let _ = painter(commands.clone(), &rx, client);
+        } else {
+            println!("Could not connect!")
         }
+        println!("Thread stopped working, restarting");
         sleep(Duration::from_secs(5))
     }
 }
 
-pub fn manage(commands: CommandLib, threads: u32, host: String, fps: f32) {
+pub fn manage(commands: CommandLib, threads: u32, host: Host, fps: f32) {
     let mut handles = Vec::new();
     let mut thread_handles = Vec::new();
     let commands = Arc::new(commands);
-    let host = Arc::new(host);
     println!("Starting threads");
     for _ in 0..threads {
         let commands_cloned = commands.clone();
-        let host_cloned = host.clone();
         let (tx, rx) = channel();
-        thread_handles.push(thread::spawn(|| {
-            recreate_connection(host_cloned, commands_cloned, rx)
+        thread_handles.push(thread::spawn(move || {
+            recreate_connection(host, commands_cloned, rx)
         }));
         handles.push(tx);
     }

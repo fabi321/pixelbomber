@@ -1,5 +1,6 @@
 use crate::client::Client;
 use std::io::Result;
+use std::net::TcpStream;
 
 /// Detected feature set of a pixelflut server.
 pub struct Features {
@@ -17,8 +18,8 @@ pub struct Features {
 /// NOTE: command detection is based on the `HELP` command, and might not work
 /// If you do notice that a server has a certain feature, but this is not reflected in the result,
 /// feel free to open an issue
-pub fn feature_detection(host: &str) -> Result<Features> {
-    let mut client = Client::connect(host)?;
+pub fn feature_detection(stream: TcpStream) -> Result<Features> {
+    let mut client = Client::new(stream);
     let (width, height) = client.read_screen_size()?;
     let help_text = client.read_help()?;
     let mut offset = false;
