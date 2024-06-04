@@ -1,8 +1,7 @@
+use net2::TcpBuilder;
 use std::io;
 use std::net::{IpAddr, TcpStream};
 use std::str::FromStr;
-use net2::TcpBuilder;
-
 
 #[derive(Copy, Clone, Debug)]
 pub struct Host {
@@ -25,17 +24,16 @@ impl Host {
         let bind: Option<IpAddr> = if let Some(v) = bind_addr {
             let bind_addr = IpAddr::from_str(&v).map_err(|e| e.to_string())?;
             if addr.is_ipv4() != bind_addr.is_ipv4() {
-                return Err("Host and bind address must be in the same address class (both v4 or both v6)".to_string())
+                return Err(
+                    "Host and bind address must be in the same address class (both v4 or both v6)"
+                        .to_string(),
+                );
             }
             Some(bind_addr)
         } else {
             None
         };
-        Ok(Host {
-            addr,
-            port,
-            bind,
-        })
+        Ok(Host { addr, port, bind })
     }
 
     pub fn new_stream(&self) -> io::Result<TcpStream> {

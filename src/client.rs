@@ -41,7 +41,7 @@ impl Client {
         self.stream.flush()?;
         let mut buffer = String::with_capacity(CMD_READ_BUFFER_SIZE);
         self.stream.read_line(&mut buffer)?;
-        let parts: Vec<&str> = buffer.trim_end().split(" ").collect();
+        let parts: Vec<&str> = buffer.trim_end().split(' ').collect();
         let width = parts[1]
             .parse::<u32>()
             .expect("Could not parse screen width");

@@ -37,11 +37,8 @@ pub fn feature_detection(stream: TcpStream) -> Result<Features> {
         // breakwater format
         if trimmed.starts_with("offset") {
             features.offset = true
-        // breakwater format
-        } else if trimmed.starts_with("px x y gg") {
-            features.px_gray = true
-        // wellenbrecher format
-        } else if trimmed.starts_with("grayscale") {
+        // breakwater format and Wellenbrecher format
+        } else if trimmed.starts_with("px x y gg") || trimmed.starts_with("grayscale") {
             features.px_gray = true
         } else if trimmed.contains("pbxyrgba") {
             features.binary = true

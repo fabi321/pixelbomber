@@ -1,13 +1,13 @@
+use std::sync::mpsc::Receiver;
+use std::sync::Arc;
 use std::{
     sync::mpsc::channel,
     thread::{self, sleep},
     time::Duration,
 };
-use std::sync::Arc;
-use std::sync::mpsc::Receiver;
 
-use pixelbomber::{image_handler::CommandLib, painter, Client};
 use crate::host::Host;
+use pixelbomber::{image_handler::CommandLib, painter, Client};
 
 fn recreate_connection(host: Host, commands: Arc<CommandLib>, rx: Receiver<usize>) {
     loop {
@@ -44,8 +44,8 @@ pub fn manage(commands: CommandLib, threads: u32, host: Host, fps: f32) {
                 sleep(Duration::from_secs_f32(1.0 / fps))
             }
             thread_handles.retain(|v| !v.is_finished());
-            if thread_handles.len() == 0 {
-                break
+            if thread_handles.is_empty() {
+                break;
             }
         }
     } else {

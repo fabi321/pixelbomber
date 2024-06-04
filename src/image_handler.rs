@@ -105,6 +105,12 @@ impl ImageConfigBuilder {
     }
 }
 
+impl Default for ImageConfigBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Configuration for how to place a picture, and what features to use
 #[derive(Copy, Clone)]
 pub struct ImageConfig {
@@ -217,13 +223,17 @@ fn image_to_commands(mut image: DynamicImage, config: ImageConfig) -> Command {
         .filter(|v| v.len() > 18)
         .flatten()
         .collect();
-    let final_result =
-        if !config.offset_usage || combined_full_results.len() < combined_offset_result.len() {
-            combined_full_results
-        } else {
-            combined_offset_result
-        };
-    let optimizations = if config.gray_usage && config.offset_usage {
+    let final_result = if config.binary_usage
+        || !config.offset_usage
+        || combined_full_results.len() < combined_offset_result.len()
+    {
+        combined_full_results
+    } else {
+        combined_offset_result
+    };
+    let optimizations = if config.binary_usage {
+        "using binary optimization"
+    } else if config.gray_usage && config.offset_usage {
         "using both gray and offset optimizations"
     } else if config.gray_usage {
         "using only gray optimization"

@@ -1,6 +1,6 @@
+use crate::host::Host;
 use manager::manage;
 use pixelbomber::{feature_detection, image_handler};
-use crate::host::Host;
 
 mod arg_handler;
 mod manager;
@@ -41,7 +41,7 @@ fn main() {
             println!("PBxyrgba command supported (binary pixel)")
         }
     }
-    if args.image.len() == 0 {
+    if args.image.is_empty() {
         println!("Please specify at least one image path!");
         return;
     }
