@@ -48,6 +48,10 @@ pub struct Args {
     #[arg(short, long)]
     pub alpha: bool,
 
+    /// Enable usage of binary command (`PXxyrgba`)
+    #[arg(short, long)]
+    pub binary: bool,
+
     /// Bind address to use for communication
     #[arg(short, long)]
     pub bind_addr: Option<String>,

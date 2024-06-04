@@ -12,6 +12,8 @@ pub struct Features {
     pub offset: bool,
     /// If the `PX x y gg` command is supported. NOTE: this is derived from the HELP command
     pub px_gray: bool,
+    /// If the binary `PB` command is supported. NOTE: this is derived from the HELP command
+    pub binary: bool,
 }
 
 /// Detect the features supported by a server
@@ -21,27 +23,29 @@ pub struct Features {
 pub fn feature_detection(stream: TcpStream) -> Result<Features> {
     let mut client = Client::new(stream);
     let (width, height) = client.read_screen_size()?;
+    let mut features = Features {
+        width,
+        height,
+        offset: false,
+        px_gray: false,
+        binary: false,
+    };
     let help_text = client.read_help()?;
-    let mut offset = false;
-    let mut px_gray = false;
     for line in help_text.split('\n') {
         let lowered = line.to_lowercase();
         let trimmed = lowered.trim_start();
         // breakwater format
         if trimmed.starts_with("offset") {
-            offset = true
+            features.offset = true
         // breakwater format
         } else if trimmed.starts_with("px x y gg") {
-            px_gray = true
+            features.px_gray = true
         // wellenbrecher format
         } else if trimmed.starts_with("grayscale") {
-            px_gray = true
+            features.px_gray = true
+        } else if trimmed.contains("pbxyrgba") {
+            features.binary = true
         }
     }
-    Ok(Features {
-        width,
-        height,
-        offset,
-        px_gray,
-    })
+    Ok(features)
 }

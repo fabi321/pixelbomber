@@ -28,3 +28,4 @@ cargo build --release
 - Same cli as pixelpwnr
 - Support for both gray pixel command as well as offset command, enable with `--offset` and `--gray`
 - Support for automated feature and size detection, on by default
+- Support for binary pixel commands in the `PBxyrgba` format (x and y are u16 le encoded)

@@ -14,6 +14,7 @@ pub struct ImageConfigBuilder {
     offset_usage: bool,
     gray_usage: bool,
     alpha_usage: bool,
+    binary_usage: bool,
     shuffle: bool,
 }
 
@@ -27,6 +28,7 @@ impl ImageConfigBuilder {
             offset_usage: false,
             gray_usage: false,
             alpha_usage: false,
+            binary_usage: false,
             shuffle: true,
         }
     }
@@ -75,6 +77,12 @@ impl ImageConfigBuilder {
         self
     }
 
+    /// If the `PBxyrgba` binary command should be used
+    pub fn binary_usage(mut self, binary_usage: bool) -> ImageConfigBuilder {
+        self.binary_usage = binary_usage;
+        self
+    }
+
     /// Shuffle draw commands (RECOMMENDED)
     pub fn shuffle(mut self, shuffle: bool) -> ImageConfigBuilder {
         self.shuffle = shuffle;
@@ -91,6 +99,7 @@ impl ImageConfigBuilder {
             offset_usage: self.offset_usage,
             gray_usage: self.gray_usage,
             alpha_usage: self.alpha_usage,
+            binary_usage: self.binary_usage,
             shuffle: self.shuffle,
         }
     }
@@ -117,6 +126,8 @@ pub struct ImageConfig {
     pub alpha_usage: bool,
     /// Shuffle draw commands (RECOMMENDED)
     pub shuffle: bool,
+    /// Use binary representation (Recommended if supported)
+    pub binary_usage: bool,
 }
 
 const CHUNK_SIZE: u32 = 10;
@@ -158,6 +169,20 @@ fn image_to_commands(mut image: DynamicImage, config: ImageConfig) -> Command {
     }
     let mut relevant_pixels = 0;
     for (x, y, pixel) in rgba_image.enumerate_pixels().filter(|(_, _, p)| p.0[3] > 0) {
+        relevant_pixels += 1;
+        let x_pos = x + config.x_offset;
+        let y_pos = y + config.y_offset;
+        if config.binary_usage {
+            let x_pos = (x_pos as u16).to_le_bytes();
+            let y_pos = (y_pos as u16).to_le_bytes();
+            let mut command = vec![b'P', b'B'];
+            command.reserve(8);
+            command.extend_from_slice(&x_pos);
+            command.extend_from_slice(&y_pos);
+            command.extend_from_slice(&pixel.0);
+            full_result.push(command);
+            continue;
+        }
         let mut rgba = String::new();
         for (i, c) in pixel.0.into_iter().enumerate() {
             if i < 3 || c != 255 && config.alpha_usage {
@@ -177,10 +202,8 @@ fn image_to_commands(mut image: DynamicImage, config: ImageConfig) -> Command {
         let command_string = format!("PX {} {} {}\n", x_pos, y_pos, rgba);
         full_result.push(command_string.into_bytes());
         let offset_vec = offset_result.get_mut(id_for_px(x, y, width)).unwrap();
-        offset_vec.extend(
-            format!("PX {} {} {}\n", x % CHUNK_SIZE, y % CHUNK_SIZE, rgba).into_bytes(),
-        );
-        relevant_pixels += 1;
+        offset_vec
+            .extend(format!("PX {} {} {}\n", x % CHUNK_SIZE, y % CHUNK_SIZE, rgba).into_bytes());
     }
     if config.shuffle {
         // shuffle all entries
