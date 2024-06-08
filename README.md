@@ -29,3 +29,22 @@ cargo build --release
 - Support for both gray pixel command as well as offset command, enable with `--offset` and `--gray`
 - Support for automated feature and size detection, on by default
 - Support for binary pixel commands in the `PBxyrgba` format (x and y are u16 le encoded)
+- Support for input streams
+- Fast image to pixel commands encoder
+
+# Get images from stream
+
+By using `-` as sole image file path, you can pipe in images from stdin. Pixelbomber expects bitmap files as input.
+You can specify, how many images can be processed in parallel with the `--workers` flag.
+
+## Example using ffmpeg
+```commandline
+ffmpeg -re -i <video_file> -f image2pipe -c:v bmp - | cargo run --release -- <host> -
+```
+
+Some ffmpeg tips:
+- use `-re` if the input is a video file. This forces ffmpeg to play it at most at realtime
+- use `-stream_loop -1` before `-i` to repeat a video indefinitely
+
+## Tradeoff
+If you want to only loop a static video, specifying the video frames as images is faster, as it only encodes them once.

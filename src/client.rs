@@ -5,8 +5,6 @@ use std::{
 
 use bufstream::BufStream;
 
-use crate::image_handler::Command;
-
 const CMD_READ_BUFFER_SIZE: usize = 1024;
 
 /// A pixelflut client, supporting most pixelflut commands
@@ -27,7 +25,7 @@ impl Client {
     }
 
     #[inline(always)]
-    pub fn send_pixel(&mut self, command: &Command) -> Result<()> {
+    pub fn send_pixel(&mut self, command: &[u8]) -> Result<()> {
         self.stream.write_all(command)
     }
 

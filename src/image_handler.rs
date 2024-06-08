@@ -1,10 +1,14 @@
 use std::path::Path;
+use std::sync::Arc;
+use std::time::Instant;
 
-use image::DynamicImage;
-use rand::{prelude::SliceRandom, thread_rng};
+use image::imageops::FilterType;
+use image::{DynamicImage, ImageError, ImageFormat, Rgba, RgbaImage};
+use rand::rngs::SmallRng;
+use rand::{prelude::SliceRandom, SeedableRng};
 
-pub type Command = Vec<u8>;
-pub type CommandLib = Vec<Command>;
+pub type Command = Vec<Vec<u8>>;
+pub type CommandLib = Vec<Arc<Command>>;
 
 pub struct ImageConfigBuilder {
     width: Option<u32>,
@@ -16,6 +20,8 @@ pub struct ImageConfigBuilder {
     alpha_usage: bool,
     binary_usage: bool,
     shuffle: bool,
+    chunks: usize,
+    resize: bool,
 }
 
 impl ImageConfigBuilder {
@@ -30,6 +36,8 @@ impl ImageConfigBuilder {
             alpha_usage: false,
             binary_usage: false,
             shuffle: true,
+            chunks: 1,
+            resize: false,
         }
     }
 
@@ -89,6 +97,21 @@ impl ImageConfigBuilder {
         self
     }
 
+    /// Number of chunks to split the image into
+    pub fn chunks(mut self, chunks: usize) -> ImageConfigBuilder {
+        if chunks == 0 {
+            panic!("Image config chunks have to be greater than 0")
+        }
+        self.chunks = chunks;
+        self
+    }
+
+    /// Resize rather than crop the image
+    pub fn resize(mut self, resize: bool) -> ImageConfigBuilder {
+        self.resize = resize;
+        self
+    }
+
     /// Build the image config
     pub fn build(self) -> ImageConfig {
         ImageConfig {
@@ -101,6 +124,8 @@ impl ImageConfigBuilder {
             alpha_usage: self.alpha_usage,
             binary_usage: self.binary_usage,
             shuffle: self.shuffle,
+            chunks: self.chunks,
+            resize: self.resize,
         }
     }
 }
@@ -134,102 +159,59 @@ pub struct ImageConfig {
     pub shuffle: bool,
     /// Use binary representation (Recommended if supported)
     pub binary_usage: bool,
+    /// Number of chunks
+    pub chunks: usize,
+    /// Resize rather than crop the image
+    pub resize: bool,
 }
 
 const CHUNK_SIZE: u32 = 10;
+// Longest command: PX xxxx yyyy rrggbbaa\n
+const NORMAL_SIZE: usize = 22;
+// Longest offset command: PX x y rrggbbaa\n
+// assumes chunk size of 10
+const OFFSET_SIZE: usize = 16;
 
-fn id_for_chunk_x_y(x: u32, y: u32, width: u32) -> usize {
-    (x + y * width / CHUNK_SIZE) as usize
+#[inline(always)]
+fn id_for_chunk_x_y(x: u32, y: u32, chunk_width: u32) -> usize {
+    (x + y * chunk_width) as usize
 }
 
-fn id_for_px(x: u32, y: u32, width: u32) -> usize {
-    id_for_chunk_x_y(x / CHUNK_SIZE, y / CHUNK_SIZE, width)
+#[inline(always)]
+fn id_for_px(x: u32, y: u32, chunk_width: u32) -> usize {
+    id_for_chunk_x_y(x / CHUNK_SIZE, y / CHUNK_SIZE, chunk_width)
 }
 
 fn image_to_commands(mut image: DynamicImage, config: ImageConfig) -> Command {
     if config.width.is_some() != config.height.is_some() {
         println!("Warning: Only setting width or height doesn't crop the image!")
     }
+    let start = Instant::now();
     let cropped_image = if let (Some(width), Some(height)) = (config.width, config.height) {
-        image.crop(0, 0, width, height)
+        #[allow(clippy::if_same_then_else)]
+        if width == image.width() && height == image.height() {
+            image
+        } else if !config.resize && width >= image.width() && height >= image.height() {
+            image
+        } else if config.resize {
+            // Triangle is the fastest, yet reasonably good algorithm
+            image.resize_exact(width, height, FilterType::Triangle)
+        } else {
+            image.crop(0, 0, width, height)
+        }
     } else {
         image
     };
     let rgba_image = cropped_image.to_rgba8();
-    let width = cropped_image.width();
-    let height = cropped_image.height();
-    let mut full_result = Vec::with_capacity((width * height) as usize);
-    let mut offset_result =
-        Vec::with_capacity(((width / CHUNK_SIZE) * (height / CHUNK_SIZE)) as usize);
-    for row in 0..(cropped_image.height() + CHUNK_SIZE - 1) / CHUNK_SIZE {
-        for column in 0..(width + CHUNK_SIZE - 1) / CHUNK_SIZE {
-            offset_result.push(
-                format!(
-                    "OFFSET {} {}\n",
-                    column * CHUNK_SIZE + config.x_offset,
-                    row * CHUNK_SIZE + config.y_offset
-                )
-                .into_bytes(),
-            )
-        }
-    }
-    let mut relevant_pixels = 0;
-    for (x, y, pixel) in rgba_image.enumerate_pixels().filter(|(_, _, p)| p.0[3] > 0) {
-        relevant_pixels += 1;
-        let x_pos = x + config.x_offset;
-        let y_pos = y + config.y_offset;
-        if config.binary_usage {
-            let x_pos = (x_pos as u16).to_le_bytes();
-            let y_pos = (y_pos as u16).to_le_bytes();
-            let mut command = vec![b'P', b'B'];
-            command.reserve(8);
-            command.extend_from_slice(&x_pos);
-            command.extend_from_slice(&y_pos);
-            command.extend_from_slice(&pixel.0);
-            full_result.push(command);
-            continue;
-        }
-        let mut rgba = String::new();
-        for (i, c) in pixel.0.into_iter().enumerate() {
-            if i < 3 || c != 255 && config.alpha_usage {
-                rgba += &format!("{:02x}", c);
-            }
-        }
-        // alpha is not supported if gray is used
-        if config.gray_usage
-            && (!config.alpha_usage || pixel.0[3] == 255)
-            && pixel.0[0] == pixel.0[1]
-            && pixel.0[1] == pixel.0[2]
-        {
-            rgba = format!("{:02x}", pixel.0[0]);
-        }
-        let x_pos = x + config.x_offset;
-        let y_pos = y + config.y_offset;
-        let command_string = format!("PX {} {} {}\n", x_pos, y_pos, rgba);
-        full_result.push(command_string.into_bytes());
-        let offset_vec = offset_result.get_mut(id_for_px(x, y, width)).unwrap();
-        offset_vec
-            .extend(format!("PX {} {} {}\n", x % CHUNK_SIZE, y % CHUNK_SIZE, rgba).into_bytes());
-    }
-    if config.shuffle {
-        // shuffle all entries
-        let mut rng = thread_rng();
-        full_result.shuffle(&mut rng);
-        offset_result.shuffle(&mut rng);
-    }
-    let combined_full_results: Command = full_result.into_iter().flatten().collect();
-    let combined_offset_result: Command = offset_result
-        .into_iter()
-        .filter(|v| v.len() > 18)
-        .flatten()
-        .collect();
-    let final_result = if config.binary_usage
-        || !config.offset_usage
-        || combined_full_results.len() < combined_offset_result.len()
-    {
-        combined_full_results
+    let (final_result, relevant_pixels) = if config.binary_usage {
+        get_binary_encoded(&rgba_image, config)
+    } else if config.offset_usage {
+        // encoding as offset is significantly faster than a full encoding
+        // This might result in a less optimized image for sparse images, but the odds are
+        // relatively low
+        get_offset_encoded(&rgba_image, config)
     } else {
-        combined_offset_result
+        get_full_encoded(&rgba_image, config)
     };
     let optimizations = if config.binary_usage {
         "using binary optimization"
@@ -242,10 +224,12 @@ fn image_to_commands(mut image: DynamicImage, config: ImageConfig) -> Command {
     } else {
         "using no optimizations"
     };
+    let size: usize = final_result.iter().map(|v| v.len()).sum();
     println!(
-        "Processed image, pixel commands bytes: {}, {} bytes per pixel, {optimizations}",
-        final_result.len(),
-        final_result.len() as f32 / relevant_pixels as f32
+        "Processed image in {}ms, pixel commands bytes: {}, {} bytes per pixel, {optimizations}",
+        start.elapsed().as_millis(),
+        size,
+        size as f32 / relevant_pixels as f32
     );
     final_result
 }
@@ -267,6 +251,268 @@ pub fn load(paths: Vec<&str>, config: ImageConfig) -> CommandLib {
         .collect();
     images
         .into_iter()
-        .map(|image| image_to_commands(image, config))
+        .map(|image| Arc::new(image_to_commands(image, config)))
         .collect()
+}
+
+pub fn load_from_memory(input: &[u8], config: ImageConfig) -> Result<Arc<Command>, ImageError> {
+    let image = image::load_from_memory_with_format(input, ImageFormat::Bmp)?;
+    Ok(Arc::new(image_to_commands(image, config)))
+}
+
+fn shuffle_collect<T, F: Fn(&T) -> Option<&[u8]>>(
+    mut input: Vec<T>,
+    size_hint: usize,
+    config: ImageConfig,
+    conversion: F,
+) -> Command {
+    if config.shuffle {
+        let mut rng = SmallRng::from_entropy();
+        input.shuffle(&mut rng)
+    }
+
+    let mut result = Vec::with_capacity(config.chunks);
+    // This will result in the last chunk having too few entries
+    let base_size = (input.len() + config.chunks - 1) / config.chunks;
+
+    for _ in 0..config.chunks {
+        result.push(Vec::with_capacity(size_hint / config.chunks))
+    }
+
+    for (i, entry) in input.into_iter().enumerate() {
+        if let Some(extension) = conversion(&entry) {
+            result[i / base_size].extend_from_slice(extension)
+        }
+    }
+
+    result
+}
+
+fn get_binary_encoded(rgba_image: &RgbaImage, config: ImageConfig) -> (Command, usize) {
+    let mut intermediate =
+        Vec::with_capacity(rgba_image.width() as usize * rgba_image.height() as usize);
+    let mut relevant_pixels = 0;
+    for (x, y, pixel) in rgba_image.enumerate_pixels() {
+        if pixel.0[3] == 0 {
+            continue;
+        }
+        relevant_pixels += 1;
+        let x_pos = x + config.x_offset;
+        let y_pos = y + config.y_offset;
+        let x_pos = (x_pos as u16).to_le_bytes();
+        let y_pos = (y_pos as u16).to_le_bytes();
+        intermediate.push([
+            b'P', b'B', x_pos[0], x_pos[1], y_pos[0], y_pos[1], pixel.0[0], pixel.0[1], pixel.0[2],
+            pixel.0[3],
+        ]);
+    }
+    let result = shuffle_collect(intermediate, relevant_pixels * 10, config, |c| Some(c));
+    (result, relevant_pixels)
+}
+
+fn get_full_encoded(rgba_image: &RgbaImage, config: ImageConfig) -> (Command, usize) {
+    let mut intermediate =
+        Vec::with_capacity(rgba_image.width() as usize * rgba_image.height() as usize);
+    let mut relevant_pixels = 0;
+    let mut size = 0;
+    for (x, y, pixel) in rgba_image.enumerate_pixels() {
+        let Some(pixel) = get_pixel(pixel, config) else {
+            continue;
+        };
+        relevant_pixels += 1;
+        let cmd = pixel_to_command(x + config.x_offset, y + config.y_offset, pixel);
+        size += cmd.1;
+        intermediate.push(cmd);
+    }
+    let result = shuffle_collect(intermediate, size, config, |(cmd, len)| Some(&cmd[..*len]));
+    (result, relevant_pixels)
+}
+
+fn get_offset_encoded(rgba_image: &RgbaImage, config: ImageConfig) -> (Command, usize) {
+    let width = rgba_image.width();
+    let height = rgba_image.height();
+    let chunk_width = (width + CHUNK_SIZE - 1) / CHUNK_SIZE;
+    let mut intermediate = Vec::with_capacity(id_for_px(width, height, chunk_width) + 1);
+    let mut size = 0;
+    for row in 0..(height + CHUNK_SIZE - 1) / CHUNK_SIZE {
+        for column in 0..(width + CHUNK_SIZE - 1) / CHUNK_SIZE {
+            let command = format!(
+                "OFFSET {} {}\n",
+                column * CHUNK_SIZE + config.x_offset,
+                row * CHUNK_SIZE + config.y_offset
+            );
+            size += command.len();
+            intermediate.push(command.into_bytes())
+        }
+    }
+    let mut relevant_pixels = 0;
+    for (x, y, pixel) in rgba_image.enumerate_pixels() {
+        let Some(pixel) = get_pixel(pixel, config) else {
+            continue;
+        };
+        relevant_pixels += 1;
+        let cmd = pixel_to_offset_command(x + config.x_offset, y + config.y_offset, pixel);
+        size += cmd.1;
+        let offset_vec = intermediate.get_mut(id_for_px(x, y, chunk_width)).unwrap();
+        offset_vec.extend(&cmd.0[..cmd.1]);
+    }
+    let result = shuffle_collect(intermediate, size, config, |cmd| {
+        if cmd.len() > 18 {
+            Some(cmd.as_slice())
+        } else {
+            None
+        }
+    });
+    (result, relevant_pixels)
+}
+
+const TO_HEX: &[u8; 16] = b"0123456789abcdef";
+
+#[inline(always)]
+fn to_hex(number: u8) -> [u8; 2] {
+    unsafe {
+        [
+            *TO_HEX.get_unchecked(number as usize >> 4),
+            *TO_HEX.get_unchecked(number as usize & 15),
+        ]
+    }
+}
+
+#[inline(always)]
+fn to_decimal(number: u32) -> ([u8; 4], usize) {
+    if number >= 1000 {
+        (
+            [
+                (number / 1000) as u8 + b'0',
+                (number / 100 % 10) as u8 + b'0',
+                (number / 10 % 10) as u8 + b'0',
+                (number % 10) as u8 + b'0',
+            ],
+            4,
+        )
+    } else if number >= 100 {
+        (
+            [
+                (number / 100) as u8 + b'0',
+                (number / 10 % 10) as u8 + b'0',
+                (number % 10) as u8 + b'0',
+                0,
+            ],
+            3,
+        )
+    } else if number >= 10 {
+        (
+            [(number / 10) as u8 + b'0', (number % 10) as u8 + b'0', 0, 0],
+            2,
+        )
+    } else {
+        ([number as u8 + b'0', 0, 0, 0], 1)
+    }
+}
+
+#[inline(always)]
+fn get_pixel(pixel: &Rgba<u8>, config: ImageConfig) -> Option<([u8; 8], usize)> {
+    if pixel.0[3] == 0 {
+        None
+    } else if config.gray_usage
+        && (!config.alpha_usage || pixel.0[3] == 255)
+        && pixel.0[0] == pixel.0[1]
+        && pixel.0[1] == pixel.0[2]
+    {
+        let number = to_hex(pixel.0[0]);
+        Some(([number[0], number[1], 0, 0, 0, 0, 0, 0], 2))
+    } else {
+        let mut result = [0u8; 8];
+        for i in 0..4 {
+            let pixel = to_hex(pixel.0[i]);
+            result[i * 2] = pixel[0];
+            result[i * 2 + 1] = pixel[1];
+        }
+        let len = if !config.alpha_usage || pixel.0[3] == 255 {
+            6
+        } else {
+            8
+        };
+        Some((result, len))
+    }
+}
+
+#[inline(always)]
+fn pixel_to_command(x: u32, y: u32, pixel: ([u8; 8], usize)) -> ([u8; NORMAL_SIZE], usize) {
+    let mut result = [
+        b'P', b'X', b' ', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ];
+    let mut size = 3;
+    let coordinate = to_decimal(x);
+    result[size..size + coordinate.1].copy_from_slice(&coordinate.0[..coordinate.1]);
+    size += coordinate.1 + 1;
+    result[size - 1] = b' ';
+    let coordinate = to_decimal(y);
+    result[size..size + coordinate.1].copy_from_slice(&coordinate.0[..coordinate.1]);
+    size += coordinate.1 + 1;
+    result[size - 1] = b' ';
+    result[size..size + pixel.1].copy_from_slice(&pixel.0[..pixel.1]);
+    size += pixel.1 + 1;
+    result[size - 1] = b'\n';
+    (result, size)
+}
+
+#[inline(always)]
+fn pixel_to_offset_command(x: u32, y: u32, pixel: ([u8; 8], usize)) -> ([u8; OFFSET_SIZE], usize) {
+    let mut result = [
+        b'P',
+        b'X',
+        b' ',
+        (x % CHUNK_SIZE) as u8 + b'0',
+        b' ',
+        (y % CHUNK_SIZE) as u8 + b'0',
+        b' ',
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    ];
+    let mut size = 7;
+    result[size..size + pixel.1].copy_from_slice(&pixel.0[..pixel.1]);
+    size += pixel.1 + 1;
+    result[size - 1] = b'\n';
+    (result, size)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_to_hex() {
+        assert_eq!(to_hex(0xff), [b'f', b'f']);
+        assert_eq!(to_hex(0x1f), [b'1', b'f'])
+    }
+
+    #[test]
+    fn test_to_decimal() {
+        assert_eq!(to_decimal(1234), ([b'1', b'2', b'3', b'4'], 4));
+        assert_eq!(to_decimal(123), ([b'1', b'2', b'3', 0], 3));
+        assert_eq!(to_decimal(12), ([b'1', b'2', 0, 0], 2));
+        assert_eq!(to_decimal(1), ([b'1', 0, 0, 0], 1));
+    }
+
+    #[test]
+    fn test_to_offset() {
+        assert_eq!(
+            pixel_to_offset_command(123, 456, ([b'f', b'f', b'0', b'0', b'1', b'1', 0, 0], 6)),
+            (
+                [
+                    b'P', b'X', b' ', b'3', b' ', b'6', b' ', b'f', b'f', b'0', b'0', b'1', b'1',
+                    b'\n', 0, 0
+                ],
+                14
+            )
+        )
+    }
 }

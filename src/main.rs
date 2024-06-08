@@ -1,4 +1,5 @@
 use crate::host::Host;
+use crate::manager::manage_dynamic;
 use manager::manage;
 use pixelbomber::{feature_detection, image_handler};
 
@@ -18,7 +19,9 @@ fn main() {
         gray_usage: args.gray,
         alpha_usage: args.alpha,
         binary_usage: args.binary,
-        shuffle: true,
+        shuffle: !args.shuffle,
+        chunks: args.count.unwrap_or(4) as usize,
+        resize: args.resize,
     };
     let host = Host::new(args.host, args.bind_addr).unwrap();
     if !args.feature_detection {
@@ -45,7 +48,11 @@ fn main() {
         println!("Please specify at least one image path!");
         return;
     }
-    let paths = args.image.iter().map(|v| v.as_str()).collect();
-    let command_lib = image_handler::load(paths, image_config);
-    manage(command_lib, args.count.unwrap_or(4), host, args.fps);
+    if args.image.len() == 1 && &args.image[0] == "-" {
+        manage_dynamic(args.count.unwrap_or(4), host, image_config, args.workers);
+    } else {
+        let paths = args.image.iter().map(|v| v.as_str()).collect();
+        let command_lib = image_handler::load(paths, image_config);
+        manage(command_lib, args.count.unwrap_or(4), host, args.fps);
+    }
 }

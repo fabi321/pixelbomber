@@ -53,8 +53,20 @@ pub struct Args {
     pub binary: bool,
 
     /// Bind address to use for communication
-    #[arg(short, long)]
+    #[arg(long)]
     pub bind_addr: Option<String>,
+
+    /// Disable shuffling of draw commands (recommended for video streams)
+    #[arg(short, long)]
+    pub shuffle: bool,
+
+    /// Number of workers for turning stream images into pixel commands
+    #[arg(long, default_value = "5")]
+    pub workers: u32,
+
+    /// Resize images rather than cropping them
+    #[arg(long)]
+    pub resize: bool,
 }
 
 pub fn parse() -> Args {
