@@ -48,3 +48,15 @@ Some ffmpeg tips:
 
 ## Tradeoff
 If you want to only loop a static video, specifying the video frames as images is faster, as it only encodes them once.
+
+# Get images from video
+
+By only supplying one file, and using the `--video` flag, pixelbomber can read all frames from that video as images.
+This will result in pixelbomber precompiling all images into commands, and fluting them afterward. WARNING: This may
+consume large amounts of RAM (~50GB for 1min FullHD 30fps video). Pixelbombewr will stop encoding new frames if the
+free system memory drops below 1GB. The number of frames processed in parallel is configured via the `--workers` flag.
+
+## Comparison with stream method
+
+Compared to reading from stdin, this method uses less cpu while fluting and doesn't drop any frames. It does use large
+amounts of RAM though.

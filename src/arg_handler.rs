@@ -67,6 +67,10 @@ pub struct Args {
     /// Resize images rather than cropping them
     #[arg(long)]
     pub resize: bool,
+
+    /// input is a video (only works with one input file, and requires ffmpeg in $PATH)
+    #[arg(short, long)]
+    pub video: bool,
 }
 
 pub fn parse() -> Args {

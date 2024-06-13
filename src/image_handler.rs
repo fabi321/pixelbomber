@@ -2,13 +2,16 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
-use image::imageops::FilterType;
 use image::{DynamicImage, ImageError, ImageFormat, Rgba, RgbaImage};
 use rand::rngs::SmallRng;
 use rand::{prelude::SliceRandom, SeedableRng};
 
+/// A single image, parsed into commands. Consists of multiple chunks of commands
 pub type Command = Vec<Vec<u8>>;
+/// A collection of image commands
 pub type CommandLib = Vec<Arc<Command>>;
+
+pub use image::imageops::FilterType;
 
 pub struct ImageConfigBuilder {
     width: Option<u32>,
@@ -255,9 +258,10 @@ pub fn load(paths: Vec<&str>, config: ImageConfig) -> CommandLib {
         .collect()
 }
 
-pub fn load_from_memory(input: &[u8], config: ImageConfig) -> Result<Arc<Command>, ImageError> {
-    let image = image::load_from_memory_with_format(input, ImageFormat::Bmp)?;
-    Ok(Arc::new(image_to_commands(image, config)))
+/// Load an image from memory and parse it into pixel commands
+pub fn load_from_memory(input: &[u8], config: ImageConfig, format: ImageFormat) -> Result<Command, ImageError> {
+    let image = image::load_from_memory_with_format(input, format)?;
+    Ok(image_to_commands(image, config))
 }
 
 fn shuffle_collect<T, F: Fn(&T) -> Option<&[u8]>>(
@@ -272,8 +276,6 @@ fn shuffle_collect<T, F: Fn(&T) -> Option<&[u8]>>(
     }
 
     let mut result = Vec::with_capacity(config.chunks);
-    // This will result in the last chunk having too few entries
-    let base_size = (input.len() + config.chunks - 1) / config.chunks;
 
     for _ in 0..config.chunks {
         result.push(Vec::with_capacity(size_hint / config.chunks))
@@ -281,7 +283,11 @@ fn shuffle_collect<T, F: Fn(&T) -> Option<&[u8]>>(
 
     for (i, entry) in input.into_iter().enumerate() {
         if let Some(extension) = conversion(&entry) {
-            result[i / base_size].extend_from_slice(extension)
+            // If not shuffled, this will result in all painters painting everywhere,
+            // skipping a few pixels (or chunks) all the time
+            // This way of splitting ensures an even distribution, even if shuffle is off,
+            // offset mode is used and only parts of the canvas are painted
+            result[i % config.chunks].extend_from_slice(extension)
         }
     }
 

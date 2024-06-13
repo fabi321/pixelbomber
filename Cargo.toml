@@ -1,6 +1,6 @@
 [package]
 name = "pixelbomber"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2021"
 license = "GPL-3.0"
 readme = "README.md"
@@ -19,6 +19,7 @@ rand = { version = "0.8", features = ["small_rng"] }
 bufstream = "0.1"
 clap = { version = "4", features = ["derive"] }
 net2 = "0.2"
+sysinfo = "0.30"
 
 [lib]
 name = "pixelbomber"

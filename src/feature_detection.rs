@@ -40,7 +40,8 @@ pub fn feature_detection(stream: TcpStream) -> Result<Features> {
         // breakwater format and Wellenbrecher format
         } else if trimmed.starts_with("px x y gg") || trimmed.starts_with("grayscale") {
             features.px_gray = true
-        } else if trimmed.contains("pbxyrgba") {
+        // pixelpwner-server and breakwater format
+        } else if trimmed.contains("pbxyrgba") || trimmed.contains("pbxxyyrgba") {
             features.binary = true
         }
     }

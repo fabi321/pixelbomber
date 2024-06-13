@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::{io::Result, sync::mpsc::Receiver};
+use std::sync::mpsc::{Receiver, TryRecvError};
 
 use crate::client::Client;
 use crate::image_handler::Command;
@@ -10,18 +10,33 @@ pub fn painter(
     mut client: Client,
     painter_id: usize,
     max_frame: usize,
-) -> Result<()> {
+    mut current_commands: Arc<Command>,
+) -> Arc<Command> {
     // Waits for first frame
-    let mut current_commands = rx.recv().unwrap();
     let mut frame = painter_id;
     // loop over frames
-    loop {
+    'outer: loop {
         // loop over drawings of a single frame
-        client.send_pixel(&current_commands[frame])?;
+        if client.send_pixel(&current_commands[frame]).is_err() {
+            break 'outer
+        }
         frame = (frame + 1) % max_frame;
-        while let Ok(command) = rx.try_recv() {
-            current_commands = command;
-            frame = painter_id
+        'inner: loop {
+            // ordered by likelihood
+            match rx.try_recv() {
+                Err(TryRecvError::Empty) => {
+                    break 'inner
+                }
+                Ok(command) => {
+                    current_commands = command;
+                    frame = painter_id;
+                }
+                Err(TryRecvError::Disconnected) => {
+                    // cleanly exit in case all senders are dropped
+                    break 'outer
+                }
+            }
         }
     }
+    current_commands
 }

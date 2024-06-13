@@ -1,5 +1,5 @@
 use crate::host::Host;
-use crate::manager::manage_dynamic;
+use crate::manager::{load_from_video, manage_dynamic};
 use manager::manage;
 use pixelbomber::{feature_detection, image_handler};
 
@@ -50,6 +50,13 @@ fn main() {
     }
     if args.image.len() == 1 && &args.image[0] == "-" {
         manage_dynamic(args.count.unwrap_or(4), host, image_config, args.workers);
+    } else if args.video {
+        if !args.image.len() == 1 {
+            println!("--video only works with exactly one input file");
+            return;
+        }
+        let Some(images) = load_from_video(&args.image[0], image_config, args.workers as usize) else { return; };
+        manage(images, args.count.unwrap_or(4), host, args.fps);
     } else {
         let paths = args.image.iter().map(|v| v.as_str()).collect();
         let command_lib = image_handler::load(paths, image_config);
