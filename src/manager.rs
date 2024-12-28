@@ -1,20 +1,21 @@
+use image::ImageFormat;
+use std::collections::HashMap;
 use std::io::Read;
-use std::sync::mpsc::{sync_channel, Receiver, TryRecvError};
+use std::process::Stdio;
+use std::sync::mpsc::{sync_channel, Receiver, TryRecvError, TrySendError};
 use std::sync::{Arc, Mutex};
 use std::{
     io,
-    sync::mpsc::channel,
     thread::{self, sleep},
     time::Duration,
 };
-use std::collections::HashMap;
-use std::process::Stdio;
-use image::ImageFormat;
 use sysinfo::System;
 
 use crate::host::Host;
 use pixelbomber::image_handler::{load_from_memory, Command, CommandLib, ImageConfig};
 use pixelbomber::{painter, Client};
+
+const CHANNEL_LIMIT: usize = 10;
 
 fn recreate_connection(
     host: Host,
@@ -22,7 +23,9 @@ fn recreate_connection(
     painter_id: usize,
     max_frame: usize,
 ) {
-    let Ok(mut current_command) = rx.recv() else { return; };
+    let Ok(mut current_command) = rx.recv() else {
+        return;
+    };
     loop {
         if let Ok(stream) = host.new_stream() {
             let client = Client::new(stream);
@@ -31,7 +34,7 @@ fn recreate_connection(
             // ongoing animation, but that is mostly irrelevant, since there will be new
             // frames later, and the connection is timed out anyway
             if let Err(TryRecvError::Disconnected) = rx.try_recv() {
-                break
+                break;
             }
         } else {
             println!("Could not connect!")
@@ -46,7 +49,8 @@ pub fn manage(commands: CommandLib, threads: u32, host: Host, fps: f32) {
     let mut thread_handles = Vec::new();
     println!("Starting threads");
     for i in 0..threads {
-        let (tx, rx) = channel();
+        let (tx, rx) = sync_channel(CHANNEL_LIMIT);
+        let _ = tx.send(commands[0].clone());
         thread_handles.push(thread::spawn(move || {
             recreate_connection(host, rx, i as usize, threads as usize)
         }));
@@ -56,7 +60,7 @@ pub fn manage(commands: CommandLib, threads: u32, host: Host, fps: f32) {
         loop {
             for command in &commands {
                 for tx in &handles {
-                    let _ = tx.send(command.clone());
+                    let _ = tx.try_send(command.clone());
                 }
                 sleep(Duration::from_secs_f32(1.0 / fps))
             }
@@ -66,9 +70,6 @@ pub fn manage(commands: CommandLib, threads: u32, host: Host, fps: f32) {
             }
         }
     } else {
-        for tx in handles {
-            let _ = tx.send(commands[0].clone());
-        }
         for handle in thread_handles {
             let _ = handle.join();
         }
@@ -79,22 +80,24 @@ pub fn manage_dynamic(threads: u32, host: Host, config: ImageConfig, workers: u3
     let mut painter_senders = Vec::new();
     let mut handles = Vec::new();
     for i in 0..threads {
-        let (tx, rx) = channel();
-        handles.push(thread::spawn(move || recreate_connection(host, rx, i as usize, threads as usize)));
+        let (tx, rx) = sync_channel(CHANNEL_LIMIT);
+        handles.push(thread::spawn(move || {
+            recreate_connection(host, rx, i as usize, threads as usize)
+        }));
         painter_senders.push(tx);
     }
-    let (manager_tx, manager_rx) = channel::<(Arc<Command>, usize)>();
+    let (manager_tx, manager_rx) = sync_channel::<(Arc<Command>, usize)>(CHANNEL_LIMIT);
     handles.push(thread::spawn(move || {
         let mut last_frame = 0;
-        while let Ok((result, result_frame)) = manager_rx.recv() {
+        'outer: while let Ok((result, result_frame)) = manager_rx.recv() {
             // Throw away frames older than the last one
             // This ensures that the image won't "jerk backward",
             // but instead just stand still for a bit
             if result_frame >= last_frame {
                 last_frame = result_frame;
                 for painter in &painter_senders {
-                    if painter.send(result.clone()).is_err() {
-                        break
+                    if let Err(TrySendError::Disconnected(_)) = painter.try_send(result.clone()) {
+                        break 'outer;
                     }
                 }
             }
@@ -111,7 +114,7 @@ pub fn manage_dynamic(threads: u32, host: Host, config: ImageConfig, workers: u3
                     continue;
                 };
                 if manager_clone.send((Arc::new(result), frame)).is_err() {
-                    break
+                    break;
                 }
             }
         }));
@@ -120,7 +123,10 @@ pub fn manage_dynamic(threads: u32, host: Host, config: ImageConfig, workers: u3
     let reader = BitmapReader::new(io::stdin());
     let mut frame = 0;
     for bmp_data in reader {
-        if worker_handles[frame % workers as usize].try_send((bmp_data, frame)).is_err() {
+        if worker_handles[frame % workers as usize]
+            .try_send((bmp_data, frame))
+            .is_err()
+        {
             println!("Dropping frame");
         };
         frame += 1;
@@ -159,7 +165,9 @@ pub fn load_from_video(path: &str, config: ImageConfig, workers: usize) -> Optio
         worker_txs.push(worker_tx);
         handles.push(thread::spawn(move || {
             while let Ok((image, frame)) = worker_rx.recv() {
-                let Ok(image) = load_from_memory(&image, config, ImageFormat::Bmp) else { continue };
+                let Ok(image) = load_from_memory(&image, config, ImageFormat::Bmp) else {
+                    continue;
+                };
                 {
                     let mut results = result_clone.lock().expect("Unable to lock results");
                     results.insert(frame, image);
@@ -171,12 +179,14 @@ pub fn load_from_video(path: &str, config: ImageConfig, workers: usize) -> Optio
     let mut system = System::new();
     for bmp_data in reader {
         system.refresh_memory();
-        if system.available_memory() <  1_000_000_000 {
+        if system.available_memory() < 1_000_000_000 {
             println!("WARNING: Less than 1GB memory, stopping at frame {frame}");
             let _ = cmd.kill();
-            break
+            break;
         }
-        worker_txs[frame % workers].send((bmp_data, frame)).expect("Worker thread stopped working");
+        worker_txs[frame % workers]
+            .send((bmp_data, frame))
+            .expect("Worker thread stopped working");
         frame += 1;
     }
     drop(worker_txs);
@@ -185,7 +195,10 @@ pub fn load_from_video(path: &str, config: ImageConfig, workers: usize) -> Optio
     }
     if frame == 0 {
         let mut error = String::new();
-        cmd.stderr.unwrap().read_to_string(&mut error).expect("Unable to read error message");
+        cmd.stderr
+            .unwrap()
+            .read_to_string(&mut error)
+            .expect("Unable to read error message");
         print!("ffmpeg error:\n{}", error);
         return None;
     }
