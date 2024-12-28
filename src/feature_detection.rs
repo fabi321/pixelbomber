@@ -1,4 +1,5 @@
 use crate::client::Client;
+use crate::image_handler::BinaryFormat;
 use std::io::Result;
 use std::net::TcpStream;
 
@@ -12,8 +13,8 @@ pub struct Features {
     pub offset: bool,
     /// If the `PX x y gg` command is supported. NOTE: this is derived from the HELP command
     pub px_gray: bool,
-    /// If the binary `PB` command is supported. NOTE: this is derived from the HELP command
-    pub binary: bool,
+    /// If and what binary format the server uses
+    pub binary: Option<BinaryFormat>,
 }
 
 /// Detect the features supported by a server
@@ -28,7 +29,7 @@ pub fn feature_detection(stream: TcpStream) -> Result<Features> {
         height,
         offset: false,
         px_gray: false,
-        binary: false,
+        binary: None,
     };
     let help_text = client.read_help()?;
     for line in help_text.split('\n') {
@@ -42,7 +43,7 @@ pub fn feature_detection(stream: TcpStream) -> Result<Features> {
             features.px_gray = true
         // pixelpwner-server and breakwater format
         } else if trimmed.contains("pbxyrgba") || trimmed.contains("pbxxyyrgba") {
-            features.binary = true
+            features.binary = Some(BinaryFormat::CoordLERGBA)
         }
     }
     Ok(features)

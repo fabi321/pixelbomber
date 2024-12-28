@@ -13,6 +13,12 @@ pub type CommandLib = Vec<Arc<Command>>;
 
 pub use image::imageops::FilterType;
 
+/// Format for binary encoded images
+#[derive(Copy, Clone, Debug)]
+pub enum BinaryFormat {
+    CoordLERGBA,
+}
+
 pub struct ImageConfigBuilder {
     width: Option<u32>,
     height: Option<u32>,
@@ -21,8 +27,8 @@ pub struct ImageConfigBuilder {
     offset_usage: bool,
     gray_usage: bool,
     alpha_usage: bool,
-    binary_usage: bool,
     shuffle: bool,
+    binary: Option<BinaryFormat>,
     chunks: usize,
     resize: bool,
 }
@@ -37,8 +43,8 @@ impl ImageConfigBuilder {
             offset_usage: false,
             gray_usage: false,
             alpha_usage: false,
-            binary_usage: false,
             shuffle: true,
+            binary: None,
             chunks: 1,
             resize: false,
         }
@@ -88,9 +94,13 @@ impl ImageConfigBuilder {
         self
     }
 
-    /// If the `PBxyrgba` binary command should be used
+    /// If the `PBxyrgba` binary command should be used with 2b LE coordinates and rgba
     pub fn binary_usage(mut self, binary_usage: bool) -> ImageConfigBuilder {
-        self.binary_usage = binary_usage;
+        self.binary = if binary_usage {
+            Some(BinaryFormat::CoordLERGBA)
+        } else {
+            None
+        };
         self
     }
 
@@ -125,8 +135,8 @@ impl ImageConfigBuilder {
             offset_usage: self.offset_usage,
             gray_usage: self.gray_usage,
             alpha_usage: self.alpha_usage,
-            binary_usage: self.binary_usage,
             shuffle: self.shuffle,
+            binary: self.binary,
             chunks: self.chunks,
             resize: self.resize,
         }
@@ -140,7 +150,7 @@ impl Default for ImageConfigBuilder {
 }
 
 /// Configuration for how to place a picture, and what features to use
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct ImageConfig {
     /// Largest width of the image.
     /// NOTE: this needs to be `canvas_width - x_offset` to crop at the canvas edges
@@ -160,12 +170,12 @@ pub struct ImageConfig {
     pub alpha_usage: bool,
     /// Shuffle draw commands (RECOMMENDED)
     pub shuffle: bool,
-    /// Use binary representation (Recommended if supported)
-    pub binary_usage: bool,
     /// Number of chunks
     pub chunks: usize,
     /// Resize rather than crop the image
     pub resize: bool,
+    /// Use binary representation (Recommended if supported)
+    pub binary: Option<BinaryFormat>,
 }
 
 const CHUNK_SIZE: u32 = 10;
@@ -206,7 +216,7 @@ fn image_to_commands(mut image: DynamicImage, config: ImageConfig) -> Command {
         image
     };
     let rgba_image = cropped_image.to_rgba8();
-    let (final_result, relevant_pixels) = if config.binary_usage {
+    let (final_result, relevant_pixels) = if config.binary.is_some() {
         get_binary_encoded(&rgba_image, config)
     } else if config.offset_usage {
         // encoding as offset is significantly faster than a full encoding
@@ -216,7 +226,7 @@ fn image_to_commands(mut image: DynamicImage, config: ImageConfig) -> Command {
     } else {
         get_full_encoded(&rgba_image, config)
     };
-    let optimizations = if config.binary_usage {
+    let optimizations = if config.binary.is_some() {
         "using binary optimization"
     } else if config.gray_usage && config.offset_usage {
         "using both gray and offset optimizations"
@@ -259,7 +269,11 @@ pub fn load(paths: Vec<&str>, config: ImageConfig) -> CommandLib {
 }
 
 /// Load an image from memory and parse it into pixel commands
-pub fn load_from_memory(input: &[u8], config: ImageConfig, format: ImageFormat) -> Result<Command, ImageError> {
+pub fn load_from_memory(
+    input: &[u8],
+    config: ImageConfig,
+    format: ImageFormat,
+) -> Result<Command, ImageError> {
     let image = image::load_from_memory_with_format(input, format)?;
     Ok(image_to_commands(image, config))
 }
@@ -294,10 +308,25 @@ fn shuffle_collect<T, F: Fn(&T) -> Option<&[u8]>>(
     result
 }
 
+fn binary_encode(format: &BinaryFormat, x: u32, y: u32, px: &Rgba<u8>) -> Vec<u8> {
+    match format {
+        BinaryFormat::CoordLERGBA => {
+            let x = (x as u16).to_le_bytes();
+            let y = (y as u16).to_le_bytes();
+            vec![
+                b'P', b'B', x[0], x[1], y[0], y[1], px.0[0], px.0[1], px.0[2], px.0[3],
+            ]
+        }
+    }
+}
+
 fn get_binary_encoded(rgba_image: &RgbaImage, config: ImageConfig) -> (Command, usize) {
     let mut intermediate =
         Vec::with_capacity(rgba_image.width() as usize * rgba_image.height() as usize);
     let mut relevant_pixels = 0;
+    let Some(format) = config.binary else {
+        panic!("Binary encode without binary format")
+    };
     for (x, y, pixel) in rgba_image.enumerate_pixels() {
         if pixel.0[3] == 0 {
             continue;
@@ -305,12 +334,7 @@ fn get_binary_encoded(rgba_image: &RgbaImage, config: ImageConfig) -> (Command, 
         relevant_pixels += 1;
         let x_pos = x + config.x_offset;
         let y_pos = y + config.y_offset;
-        let x_pos = (x_pos as u16).to_le_bytes();
-        let y_pos = (y_pos as u16).to_le_bytes();
-        intermediate.push([
-            b'P', b'B', x_pos[0], x_pos[1], y_pos[0], y_pos[1], pixel.0[0], pixel.0[1], pixel.0[2],
-            pixel.0[3],
-        ]);
+        intermediate.push(binary_encode(&format, x_pos, y_pos, pixel));
     }
     let result = shuffle_collect(intermediate, relevant_pixels * 10, config, |c| Some(c));
     (result, relevant_pixels)
@@ -520,5 +544,17 @@ mod tests {
                 14
             )
         )
+    }
+
+    #[test]
+    fn test_network_encoder() {
+        let x = 0x1234;
+        let y = 0x9876;
+        let pixel = Rgba([0x01, 0x23, 0x45, 0x67]);
+        let expected = vec![b'P', b'B', 0x34, 0x12, 0x76, 0x98, 0x01, 0x23, 0x45, 0x67];
+        assert_eq!(
+            binary_encode(&BinaryFormat::CoordLERGBA, x, y, &pixel),
+            expected
+        );
     }
 }

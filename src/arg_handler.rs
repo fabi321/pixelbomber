@@ -48,10 +48,6 @@ pub struct Args {
     #[arg(short, long)]
     pub alpha: bool,
 
-    /// Enable usage of binary command (`PXxyrgba`)
-    #[arg(short, long)]
-    pub binary: bool,
-
     /// Bind address to use for communication
     #[arg(long)]
     pub bind_addr: Option<String>,
@@ -71,6 +67,10 @@ pub struct Args {
     /// input is a video (only works with one input file, and requires ffmpeg in $PATH)
     #[arg(short, long)]
     pub video: bool,
+
+    /// Use the PBxxyyrgba format with le encoding
+    #[arg(long)]
+    pub le_rgba: bool,
 }
 
 pub fn parse() -> Args {
