@@ -76,7 +76,13 @@ pub fn manage(commands: CommandLib, threads: u32, host: Host, fps: f32) {
     }
 }
 
-pub fn manage_dynamic(threads: u32, host: Host, config: ImageConfig, workers: u32) {
+pub fn manage_dynamic(
+    threads: u32,
+    host: Host,
+    config: ImageConfig,
+    workers: u32,
+    continuous: bool,
+) {
     let mut painter_senders = Vec::new();
     let mut handles = Vec::new();
     for i in 0..threads {
@@ -120,7 +126,7 @@ pub fn manage_dynamic(threads: u32, host: Host, config: ImageConfig, workers: u3
         }));
         worker_handles.push(tx)
     }
-    let reader = BitmapReader::new(io::stdin());
+    let reader = ContinuousReader::new(continuous);
     let mut frame = 0;
     for bmp_data in reader {
         if worker_handles[frame % workers as usize]
@@ -211,6 +217,39 @@ pub fn load_from_video(path: &str, config: ImageConfig, workers: usize) -> Optio
         }
     }
     Some(result)
+}
+
+pub struct ContinuousReader {
+    reader: BitmapReader<io::Stdin>,
+    continuous: bool,
+}
+
+impl ContinuousReader {
+    pub fn new(continuous: bool) -> ContinuousReader {
+        ContinuousReader {
+            reader: BitmapReader::new(io::stdin()),
+            continuous,
+        }
+    }
+}
+
+impl Iterator for ContinuousReader {
+    type Item = Vec<u8>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(res) = self.reader.next() {
+            return Some(res);
+        }
+        if !self.continuous {
+            return None;
+        }
+        loop {
+            self.reader = BitmapReader::new(io::stdin());
+            if let Some(res) = self.reader.next() {
+                return Some(res);
+            }
+        }
+    }
 }
 
 pub struct BitmapReader<R: Read> {

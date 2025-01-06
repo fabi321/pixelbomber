@@ -71,6 +71,10 @@ pub struct Args {
     /// Use the PBxxyyrgba format with le encoding
     #[arg(long)]
     pub le_rgba: bool,
+
+    /// Run continuously (ignore EOF if using stdin)
+    #[arg(long)]
+    pub continuous: bool,
 }
 
 pub fn parse() -> Args {
