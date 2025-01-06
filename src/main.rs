@@ -57,7 +57,13 @@ fn main() {
         return;
     }
     if args.image.len() == 1 && &args.image[0] == "-" {
-        manage_dynamic(args.count.unwrap_or(4), host, image_config, args.workers);
+        manage_dynamic(
+            args.count.unwrap_or(4),
+            host,
+            image_config,
+            args.workers,
+            args.continuous,
+        );
     } else if args.video {
         if !args.image.len() == 1 {
             println!("--video only works with exactly one input file");
