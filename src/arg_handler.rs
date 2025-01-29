@@ -75,6 +75,14 @@ pub struct Args {
     /// Run continuously (ignore EOF if using stdin)
     #[arg(long)]
     pub continuous: bool,
+
+    /// Test green screen for camera. This will print the first pixel of the camera
+    #[arg(long)]
+    pub test_green_screen: bool,
+
+    /// Green screen color, obtain by running `pixelbomber --test-green-screen /dev/video0`
+    #[arg(long)]
+    pub green_screen: Option<String>,
 }
 
 pub fn parse() -> Args {

@@ -1,17 +1,17 @@
-use crate::host::Host;
 use crate::manager::{load_from_video, manage_dynamic};
 use manager::manage;
 use pixelbomber::{
     feature_detection,
     image_handler::{self, BinaryFormat},
+    service::{Host, Service, ServiceBuilder},
 };
 
 mod arg_handler;
+mod camera;
 mod manager;
 
-mod host;
-
 fn main() {
+    env_logger::init();
     let args = arg_handler::parse();
     let mut image_config = image_handler::ImageConfig {
         width: args.width,
@@ -26,7 +26,13 @@ fn main() {
         chunks: args.count.unwrap_or(4) as usize,
         resize: args.resize,
     };
-    let host = Host::new(args.host, args.bind_addr).unwrap();
+
+    if args.test_green_screen {
+        camera::test_green_screen(&args.image[0]);
+        return;
+    }
+
+    let host = Host::new(&args.host, args.bind_addr).unwrap();
     if args.le_rgba {
         image_config.binary = Some(BinaryFormat::CoordLERGBA)
     }
@@ -56,27 +62,38 @@ fn main() {
         println!("Please specify at least one image path!");
         return;
     }
-    if args.image.len() == 1 && &args.image[0] == "-" {
-        manage_dynamic(
-            args.count.unwrap_or(4),
-            host,
-            image_config,
-            args.workers,
-            args.continuous,
-        );
-    } else if args.video {
-        if !args.image.len() == 1 {
-            println!("--video only works with exactly one input file");
-            return;
-        }
-        let Some(images) = load_from_video(&args.image[0], image_config, args.workers as usize)
-        else {
-            return;
+    let mut converter_threads = 0;
+    let mut closure: Box<dyn FnMut(&mut Service)> =
+        if args.image.len() == 1 && (&args.image[0] == "-" || args.image[0] == "/dev/stdin") {
+            converter_threads = args.workers;
+            Box::new(manage_dynamic(args.continuous))
+        } else if args.image.len() == 1 && args.image[0].starts_with("/dev/video") {
+            converter_threads = args.workers;
+            Box::new(camera::get_callback(
+                &args.image[0],
+                args.green_screen.clone(),
+            ))
+        } else if args.video {
+            if !args.image.len() == 1 {
+                println!("--video only works with exactly one input file");
+                return;
+            }
+            let Some(images) = load_from_video(&args.image[0], image_config, args.workers as usize)
+            else {
+                return;
+            };
+            Box::new(manage(images, args.fps))
+        } else {
+            let paths = args.image.iter().map(|v| v.as_str()).collect();
+            let command_lib = image_handler::load(paths, image_config);
+            Box::new(manage(command_lib, args.fps))
         };
-        manage(images, args.count.unwrap_or(4), host, args.fps);
-    } else {
-        let paths = args.image.iter().map(|v| v.as_str()).collect();
-        let command_lib = image_handler::load(paths, image_config);
-        manage(command_lib, args.count.unwrap_or(4), host, args.fps);
-    }
+    let mut service = ServiceBuilder::new(host)
+        .channel_limit(10)
+        .converter_threads(converter_threads as usize)
+        .image_config(image_config)
+        .threads(args.count.unwrap_or(10) as usize)
+        .build();
+    service.loop_callback(closure.as_mut());
+    service.stop();
 }

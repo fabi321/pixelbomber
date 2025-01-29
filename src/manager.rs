@@ -1,8 +1,9 @@
 use image::ImageFormat;
+use pixelbomber::service::Service;
 use std::collections::HashMap;
 use std::io::Read;
 use std::process::Stdio;
-use std::sync::mpsc::{sync_channel, Receiver, TryRecvError, TrySendError};
+use std::sync::mpsc::sync_channel;
 use std::sync::{Arc, Mutex};
 use std::{
     io,
@@ -11,138 +12,28 @@ use std::{
 };
 use sysinfo::System;
 
-use crate::host::Host;
-use pixelbomber::image_handler::{load_from_memory, Command, CommandLib, ImageConfig};
-use pixelbomber::{painter, Client};
+use pixelbomber::image_handler::{load_from_memory, CommandLib, ImageConfig};
 
-const CHANNEL_LIMIT: usize = 10;
-
-fn recreate_connection(
-    host: Host,
-    rx: Receiver<Arc<Command>>,
-    painter_id: usize,
-    max_frame: usize,
-) {
-    let Ok(mut current_command) = rx.recv() else {
-        return;
-    };
-    loop {
-        if let Ok(stream) = host.new_stream() {
-            let client = Client::new(stream);
-            current_command = painter(&rx, client, painter_id, max_frame, current_command);
-            // this might discard an animation frame, if the connection is dropped, and it is an
-            // ongoing animation, but that is mostly irrelevant, since there will be new
-            // frames later, and the connection is timed out anyway
-            if let Err(TryRecvError::Disconnected) = rx.try_recv() {
-                break;
-            }
-        } else {
-            println!("Could not connect!")
-        }
-        println!("Thread stopped working, restarting");
-        sleep(Duration::from_secs(5))
-    }
-}
-
-pub fn manage(commands: CommandLib, threads: u32, host: Host, fps: f32) {
-    let mut handles = Vec::new();
-    let mut thread_handles = Vec::new();
-    println!("Starting threads");
-    for i in 0..threads {
-        let (tx, rx) = sync_channel(CHANNEL_LIMIT);
-        let _ = tx.send(commands[0].clone());
-        thread_handles.push(thread::spawn(move || {
-            recreate_connection(host, rx, i as usize, threads as usize)
-        }));
-        handles.push(tx);
-    }
-    if commands.len() > 1 {
-        loop {
-            for command in &commands {
-                for tx in &handles {
-                    let _ = tx.try_send(command.clone());
-                }
-                sleep(Duration::from_secs_f32(1.0 / fps))
-            }
-            thread_handles.retain(|v| !v.is_finished());
-            if thread_handles.is_empty() {
-                break;
-            }
-        }
-    } else {
-        for handle in thread_handles {
-            let _ = handle.join();
-        }
-    }
-}
-
-pub fn manage_dynamic(
-    threads: u32,
-    host: Host,
-    config: ImageConfig,
-    workers: u32,
-    continuous: bool,
-) {
-    let mut painter_senders = Vec::new();
-    let mut handles = Vec::new();
-    for i in 0..threads {
-        let (tx, rx) = sync_channel(CHANNEL_LIMIT);
-        handles.push(thread::spawn(move || {
-            recreate_connection(host, rx, i as usize, threads as usize)
-        }));
-        painter_senders.push(tx);
-    }
-    let (manager_tx, manager_rx) = sync_channel::<(Arc<Command>, usize)>(CHANNEL_LIMIT);
-    handles.push(thread::spawn(move || {
-        let mut last_frame = 0;
-        'outer: while let Ok((result, result_frame)) = manager_rx.recv() {
-            // Throw away frames older than the last one
-            // This ensures that the image won't "jerk backward",
-            // but instead just stand still for a bit
-            if result_frame >= last_frame {
-                last_frame = result_frame;
-                for painter in &painter_senders {
-                    if let Err(TrySendError::Disconnected(_)) = painter.try_send(result.clone()) {
-                        break 'outer;
-                    }
-                }
-            }
-        }
-    }));
-    let mut worker_handles = Vec::new();
-    for _ in 0..workers {
-        let (tx, rx) = sync_channel::<(Vec<u8>, usize)>(1);
-        let manager_clone = manager_tx.clone();
-        handles.push(thread::spawn(move || {
-            while let Ok((image, frame)) = rx.recv() {
-                let Ok(result) = load_from_memory(&image, config, ImageFormat::Bmp) else {
-                    println!("Error loading image");
-                    continue;
-                };
-                if manager_clone.send((Arc::new(result), frame)).is_err() {
-                    break;
-                }
-            }
-        }));
-        worker_handles.push(tx)
-    }
-    let reader = ContinuousReader::new(continuous);
+pub fn manage(commands: CommandLib, mut fps: f32) -> impl FnMut(&mut Service) {
     let mut frame = 0;
-    for bmp_data in reader {
-        if worker_handles[frame % workers as usize]
-            .try_send((bmp_data, frame))
-            .is_err()
-        {
-            println!("Dropping frame");
-        };
-        frame += 1;
+    if commands.len() == 1 {
+        fps = 0.000001;
     }
-    // By dropping the worker handles, this tells the rest of the pipe that the task is done
-    drop(worker_handles);
-    drop(manager_tx);
-    println!("Processed {frame} frames");
-    for handle in handles {
-        let _ = handle.join();
+    move |service: &mut Service| {
+        service.send_command(commands[frame].clone());
+        frame = (frame + 1) % commands.len();
+
+        sleep(Duration::from_secs_f32(1.0 / fps))
+    }
+}
+
+pub fn manage_dynamic(continuous: bool) -> impl FnMut(&mut Service) {
+    let mut reader = ContinuousReader::new(continuous);
+    move |service: &mut Service| {
+        let Some(img) = reader.next() else {
+            return;
+        };
+        service.send_image(image::load_from_memory_with_format(&img, ImageFormat::Bmp).unwrap());
     }
 }
 
@@ -195,6 +86,7 @@ pub fn load_from_video(path: &str, config: ImageConfig, workers: usize) -> Optio
             .expect("Worker thread stopped working");
         frame += 1;
     }
+    _ = cmd.wait();
     drop(worker_txs);
     for worker in handles {
         let _ = worker.join();

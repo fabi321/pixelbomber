@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use image::{DynamicImage, ImageError, ImageFormat, Rgba, RgbaImage};
+use log::{info, warn};
 use rand::rngs::SmallRng;
 use rand::{prelude::SliceRandom, SeedableRng};
 
@@ -178,6 +179,12 @@ pub struct ImageConfig {
     pub binary: Option<BinaryFormat>,
 }
 
+impl Default for ImageConfig {
+    fn default() -> Self {
+        ImageConfigBuilder::default().build()
+    }
+}
+
 const CHUNK_SIZE: u32 = 10;
 // Longest command: PX xxxx yyyy rrggbbaa\n
 const NORMAL_SIZE: usize = 22;
@@ -195,9 +202,9 @@ fn id_for_px(x: u32, y: u32, chunk_width: u32) -> usize {
     id_for_chunk_x_y(x / CHUNK_SIZE, y / CHUNK_SIZE, chunk_width)
 }
 
-fn image_to_commands(mut image: DynamicImage, config: ImageConfig) -> Command {
+pub(crate) fn image_to_commands(mut image: DynamicImage, config: ImageConfig) -> Command {
     if config.width.is_some() != config.height.is_some() {
-        println!("Warning: Only setting width or height doesn't crop the image!")
+        warn!("Warning: Only setting width or height doesn't crop the image!")
     }
     let start = Instant::now();
     let cropped_image = if let (Some(width), Some(height)) = (config.width, config.height) {
@@ -238,7 +245,7 @@ fn image_to_commands(mut image: DynamicImage, config: ImageConfig) -> Command {
         "using no optimizations"
     };
     let size: usize = final_result.iter().map(|v| v.len()).sum();
-    println!(
+    info!(
         "Processed image in {}ms, pixel commands bytes: {}, {} bytes per pixel, {optimizations}",
         start.elapsed().as_millis(),
         size,
@@ -361,11 +368,11 @@ fn get_full_encoded(rgba_image: &RgbaImage, config: ImageConfig) -> (Command, us
 fn get_offset_encoded(rgba_image: &RgbaImage, config: ImageConfig) -> (Command, usize) {
     let width = rgba_image.width();
     let height = rgba_image.height();
-    let chunk_width = (width + CHUNK_SIZE - 1) / CHUNK_SIZE;
+    let chunk_width = width.div_ceil(CHUNK_SIZE);
     let mut intermediate = Vec::with_capacity(id_for_px(width, height, chunk_width) + 1);
     let mut size = 0;
-    for row in 0..(height + CHUNK_SIZE - 1) / CHUNK_SIZE {
-        for column in 0..(width + CHUNK_SIZE - 1) / CHUNK_SIZE {
+    for row in 0..height.div_ceil(CHUNK_SIZE) {
+        for column in 0..width.div_ceil(CHUNK_SIZE) {
             let command = format!(
                 "OFFSET {} {}\n",
                 column * CHUNK_SIZE + config.x_offset,
@@ -410,6 +417,7 @@ fn to_hex(number: u8) -> [u8; 2] {
 
 #[inline(always)]
 fn to_decimal(number: u32) -> ([u8; 4], usize) {
+    assert!(number < 10_000, "Too large coordinates");
     if number >= 1000 {
         (
             [

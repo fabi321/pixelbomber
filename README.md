@@ -30,6 +30,7 @@ cargo build --release
 - Support for automated feature and size detection, on by default
 - Support for binary pixel commands in the `PBxyrgba` format (x and y are u16 le encoded)
 - Support for input streams
+- Suopport for v4l cameras
 - Fast image to pixel commands encoder
 
 # Get images from stream
@@ -48,6 +49,14 @@ Some ffmpeg tips:
 
 ## Tradeoff
 If you want to only loop a static video, specifying the video frames as images is faster, as it only encodes them once.
+
+# Get images from camera
+
+By using `/dev/video*` as sole image file path, you can use v4l cameras as input.
+You can also use `--test-green-screen` to get the current pixel value on position 0,0,
+and use that value with `--green-screen` to filter out the green screen.
+
+Tip: OBS has a virtual camera feature.
 
 # Get images from video
 
