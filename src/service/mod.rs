@@ -169,6 +169,8 @@ impl Service {
     }
 
     /// Change the image processing configuration
+    /// WARNING: This will wait for all converter threads until their queue is
+    /// empty enough
     pub fn change_image_config(&mut self, image_config: ImageConfig) {
         self.image_config = image_config;
         if let Some(converter_input) = &self.converter_input {
