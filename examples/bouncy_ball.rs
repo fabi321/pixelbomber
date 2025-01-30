@@ -13,6 +13,9 @@ use pixelbomber::{
 };
 use rand::{seq::SliceRandom, thread_rng};
 
+const THREAD_COUNT: usize = 10;
+const TARGET: &str = "localhost:1234";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Direction {
     NorthEast,
@@ -155,8 +158,8 @@ fn move_ball(bouncy_ball: &mut BouncyBall, client: &mut Client) {
 pub fn main() {
     env_logger::init();
 
-    let mut service = ServiceBuilder::new_from_host_str("localhost:1234")
-        .threads(1)
+    let mut service = ServiceBuilder::new_from_host_str(TARGET)
+        .threads(THREAD_COUNT)
         .build();
     let client = service.get_client().expect("Unable to get client");
     let ball = initialize_ball();
@@ -169,6 +172,7 @@ pub fn main() {
         .apply_features(features)
         .width(ball.width)
         .height(ball.height)
+        .chunks(THREAD_COUNT)
         .build();
     service.change_image_config(image_config);
     let mut bouncy_ball = BouncyBall {
