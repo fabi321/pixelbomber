@@ -401,7 +401,7 @@ fn get_offset_encoded(rgba_image: &RgbaImage, config: ImageConfig) -> (Command, 
             continue;
         };
         relevant_pixels += 1;
-        let cmd = pixel_to_offset_command(x + config.x_offset, y + config.y_offset, pixel);
+        let cmd = pixel_to_offset_command(x, y, pixel);
         size += cmd.1;
         let offset_vec = intermediate.get_mut(id_for_px(x, y, chunk_width)).unwrap();
         offset_vec.extend(&cmd.0[..cmd.1]);
