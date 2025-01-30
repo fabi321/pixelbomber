@@ -155,7 +155,9 @@ fn move_ball(bouncy_ball: &mut BouncyBall, client: &mut Client) {
 pub fn main() {
     env_logger::init();
 
-    let mut service = ServiceBuilder::new_from_host_str("localhost:1234").build();
+    let mut service = ServiceBuilder::new_from_host_str("localhost:1234")
+        .threads(1)
+        .build();
     let client = service.get_client().expect("Unable to get client");
     let ball = initialize_ball();
     let (width, height) = client
@@ -163,7 +165,12 @@ pub fn main() {
         .expect("Unable to read screen size");
     let features = pixelbomber::feature_detection::feature_detection(client)
         .expect("Unable to detect features");
-    service.change_image_config(ImageConfigBuilder::new().apply_features(features).build());
+    let mut image_config = ImageConfigBuilder::new()
+        .apply_features(features)
+        .width(ball.width)
+        .height(ball.height)
+        .build();
+    service.change_image_config(image_config);
     let mut bouncy_ball = BouncyBall {
         x: width / 2,
         y: height / 2,
@@ -180,14 +187,10 @@ pub fn main() {
             &mut bouncy_ball,
             service.get_client().expect("Unable to get client"),
         );
-        let mut result = image::RgbaImage::new(bouncy_ball.width, bouncy_ball.height);
-        image::imageops::overlay(
-            &mut result,
-            &bouncy_ball.ball.img.to_rgba8(),
-            bouncy_ball.x as i64,
-            bouncy_ball.y as i64,
-        );
-        service.send_image(result.into());
+        image_config.x_offset = bouncy_ball.x;
+        image_config.y_offset = bouncy_ball.y;
+        service.change_image_config(image_config);
+        service.send_image(bouncy_ball.ball.img.clone());
         if let Some(dur) = Duration::from_millis(1000 / 120).checked_sub(last_time.elapsed()) {
             sleep(dur);
         }
