@@ -175,7 +175,7 @@ pub fn main() {
 
     let mut last_time = Instant::now();
 
-    service.loop_callback(move |service: &mut Service| loop {
+    service.loop_callback(move |service: &mut Service| {
         move_ball(
             &mut bouncy_ball,
             service.get_client().expect("Unable to get client"),
