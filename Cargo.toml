@@ -1,6 +1,6 @@
 [package]
 name = "pixelbomber"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 license = "GPL-3.0"
 readme = "README.md"
@@ -27,6 +27,9 @@ url = "2.2"
 trust-dns-resolver = "0.20"
 env_logger = { version = "0.11.6", optional = true }
 
+[dev-dependencies]
+lazy_static = "1.4"
+
 [lib]
 name = "pixelbomber"
 path = "src/lib.rs"
@@ -35,3 +38,6 @@ path = "src/lib.rs"
 name = "pixelbomber"
 path = "src/main.rs"
 required-features = ["default"]
+
+[[example]]
+name = "bouncy_ball"

@@ -69,3 +69,16 @@ free system memory drops below 1GB. The number of frames processed in parallel i
 
 Compared to reading from stdin, this method uses less cpu while fluting and doesn't drop any frames. It does use large
 amounts of RAM though.
+
+# Example
+
+In the `examples` folder, you can find an example usage of the `Service` struct,
+enabling interactive applications. This makes use of image processing pipelines
+to do the heavy lifting, just focusing on the actual application logic.
+It connects to localhost:1234 and reflects off any red pixels (as well as the world border).
+
+Run it with
+
+```commandline
+cargo run --release --example bouncy_ball
+```

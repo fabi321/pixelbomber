@@ -170,7 +170,6 @@ impl Service {
 
     /// Change the image processing configuration
     pub fn change_image_config(&mut self, image_config: ImageConfig) {
-        self.start_check();
         self.image_config = image_config;
         if let Some(converter_input) = &self.converter_input {
             let _ = converter_input.send(distributor::DistributorChange::Config(image_config));

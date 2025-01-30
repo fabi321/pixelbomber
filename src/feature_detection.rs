@@ -1,7 +1,6 @@
 use crate::client::Client;
 use crate::image_handler::BinaryFormat;
 use std::io::Result;
-use std::net::TcpStream;
 
 /// Detected feature set of a pixelflut server.
 pub struct Features {
@@ -21,8 +20,7 @@ pub struct Features {
 /// NOTE: command detection is based on the `HELP` command, and might not work
 /// If you do notice that a server has a certain feature, but this is not reflected in the result,
 /// feel free to open an issue
-pub fn feature_detection(stream: TcpStream) -> Result<Features> {
-    let mut client = Client::new(stream);
+pub fn feature_detection(client: &mut Client) -> Result<Features> {
     let (width, height) = client.read_screen_size()?;
     let mut features = Features {
         width,

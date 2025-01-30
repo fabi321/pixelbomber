@@ -98,7 +98,7 @@ impl Client {
         Ok(Rgb([(color >> 16) as u8, (color >> 8) as u8, color as u8]))
     }
 
-    pub fn read_pixel_multi(&mut self, pixel: Vec<(u32, u32)>) -> Result<Vec<Rgb<u8>>> {
+    pub fn read_pixel_multi(&mut self, pixel: &[(u32, u32)]) -> Result<Vec<Rgb<u8>>> {
         for (x, y) in pixel.iter() {
             self.stream.write_all(format!("PX {x} {y}\n").as_bytes())?;
         }
@@ -114,6 +114,6 @@ impl Client {
     }
 
     pub fn read_pixel(&mut self, x: u32, y: u32) -> Result<Rgb<u8>> {
-        Ok(self.read_pixel_multi(vec![(x, y)])?[0])
+        Ok(self.read_pixel_multi(&[(x, y)])?[0])
     }
 }

@@ -14,8 +14,10 @@ pub type CommandLib = Vec<Arc<Command>>;
 
 pub use image::imageops::FilterType;
 
+use crate::feature_detection::Features;
+
 /// Format for binary encoded images
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum BinaryFormat {
     CoordLERGBA,
 }
@@ -123,6 +125,17 @@ impl ImageConfigBuilder {
     /// Resize rather than crop the image
     pub fn resize(mut self, resize: bool) -> ImageConfigBuilder {
         self.resize = resize;
+        self
+    }
+
+    pub fn apply_features(mut self, features: Features) -> ImageConfigBuilder {
+        self.width = Some(self.width.unwrap_or(features.width));
+        self.height = Some(self.height.unwrap_or(features.height));
+        self.offset_usage = self.offset_usage || features.offset;
+        self.gray_usage = self.gray_usage || features.px_gray;
+        if self.binary.is_none() {
+            self.binary = features.binary;
+        }
         self
     }
 

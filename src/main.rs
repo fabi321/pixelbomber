@@ -4,6 +4,7 @@ use pixelbomber::{
     feature_detection,
     image_handler::{self, BinaryFormat},
     service::{Host, Service, ServiceBuilder},
+    Client,
 };
 
 mod arg_handler;
@@ -37,7 +38,8 @@ fn main() {
         image_config.binary = Some(BinaryFormat::CoordLERGBA)
     }
     if !args.feature_detection {
-        let features = feature_detection::feature_detection(host.new_stream().unwrap()).unwrap();
+        let mut client = Client::new(host.new_stream().unwrap());
+        let features = feature_detection::feature_detection(&mut client).unwrap();
         let max_width = features.width - args.x;
         image_config.width = Some(image_config.width.unwrap_or(max_width).min(max_width));
         let max_height = features.height - args.y;
