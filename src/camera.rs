@@ -54,7 +54,7 @@ pub fn test_green_screen(camera: &str) {
     let image = frame_to_image(camera.capture().expect("Unable to capture image"));
     let pixel = image.get_pixel(0, 0);
     println!(
-        "Green value (use with --green-screen): {:x}{:x}{:x}",
+        "Green value (use with --green-screen): {:02x}{:02x}{:02x}",
         pixel[0], pixel[1], pixel[2]
     )
 }
