@@ -8,6 +8,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use bincode::{decode_from_std_read, encode_to_vec, Decode, Encode};
 use bincode::config::standard;
+use log::warn;
 use crate::image_handler::Command;
 use crate::service::{Host, Service};
 
@@ -114,13 +115,13 @@ impl Client {
 
     pub fn start(self) -> impl FnMut(&mut Service) {
         let mut stream = self.mod_host.new_stream().expect("Server Error");
-        let _: Target = decode_from_std_read(&mut stream, standard()).expect("Server Error");
+        let _: Target = read(&mut stream).expect("Server Error");
         move |service: &mut Service | {
             if let Ok(data) = decode_from_std_read(&mut stream, standard()) {
                 let arced: Arc<Command> = Arc::new(data);
                 let _ = service.painter_input.as_ref().unwrap().try_send(arced);
             } else {
-                eprintln!("Connection lost, reconnecting");
+                warn!("Connection to manager lost, reconnecting");
                 sleep(Duration::from_secs(1));
                 // using return here ensures that the process can be exited after at most 1s
                 let Ok(new_stream) = self.mod_host.new_stream() else { return };
@@ -128,7 +129,7 @@ impl Client {
                 let Ok(_) = read::<Target>(&mut stream) else { return };
                 let Ok(command) = read::<Command>(&mut stream) else { return };
                 let _ = service.painter_input.as_ref().unwrap().try_send(Arc::new(command));
-                eprintln!("Successfully reconnected");
+                warn!("Reconnected to manager");
             }
         }
     }
