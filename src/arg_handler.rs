@@ -83,6 +83,14 @@ pub struct Args {
     /// Green screen color, obtain by running `pixelbomber --test-green-screen /dev/video0`
     #[arg(long)]
     pub green_screen: Option<String>,
+
+    /// This pixelbomber is only a manager instead of a pixel fluter, listens at the specified port
+    #[arg(long)]
+    pub serve_manager: Option<u16>,
+
+    /// Listen to the manager at HOST for commands
+    #[arg(long)]
+    pub listen_manager: bool,
 }
 
 pub fn parse() -> Args {

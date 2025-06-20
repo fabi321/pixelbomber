@@ -3,6 +3,7 @@ mod distributor;
 mod host;
 mod merger;
 mod painter;
+pub mod moderator;
 
 use std::{
     sync::{
@@ -18,6 +19,7 @@ use crate::{
     image_handler::{Command, ImageConfig},
     Client,
 };
+use crate::service::moderator::Server;
 
 pub struct ServiceBuilder {
     host: Host,
@@ -25,6 +27,7 @@ pub struct ServiceBuilder {
     image_config: ImageConfig,
     converter_threads: usize,
     channel_limit: usize,
+    listen_port: Option<u16>,
 }
 
 impl ServiceBuilder {
@@ -36,6 +39,7 @@ impl ServiceBuilder {
             image_config: ImageConfig::default(),
             converter_threads: 1,
             channel_limit: 10,
+            listen_port: None,
         }
     }
 
@@ -68,6 +72,14 @@ impl ServiceBuilder {
         self
     }
 
+    /// Set a listen port for the management server
+    /// This will convert the service from being a fluter into a server that
+    /// tells other clients what to flood
+    pub fn listen_port(mut self, port: u16) -> ServiceBuilder {
+        self.listen_port = Some(port);
+        self
+    }
+
     pub fn build(self) -> Service {
         Service::new(
             self.host,
@@ -75,6 +87,7 @@ impl ServiceBuilder {
             self.image_config,
             self.converter_threads,
             self.channel_limit,
+            self.listen_port,
         )
     }
 }
@@ -86,6 +99,7 @@ pub struct Service {
     worker_client: Option<Client>,
     converter_threads: usize,
     channel_limit: usize,
+    listen_port: Option<u16>,
     converter_input: Option<SyncSender<distributor::DistributorChange>>,
     painter_input: Option<SyncSender<Arc<Command>>>,
     join_handles: Vec<JoinHandle<()>>,
@@ -98,6 +112,7 @@ impl Service {
         image_config: ImageConfig,
         converter_threads: usize,
         channel_limit: usize,
+        listen_port: Option<u16>,
     ) -> Service {
         Service {
             host,
@@ -106,6 +121,7 @@ impl Service {
             worker_client: None,
             converter_threads,
             channel_limit,
+            listen_port,
             converter_input: None,
             painter_input: None,
             join_handles: Vec::new(),
@@ -144,22 +160,29 @@ impl Service {
                 painter_input.clone(),
             )));
         }
-        let mut painter_inputs = Vec::new();
-        for i in 0..self.threads {
-            let (painter_input, painter_output) = sync_channel(self.channel_limit);
-            painter_inputs.push(painter_input);
-            self.join_handles.push(spawn(painter::get_painter(
-                painter_output,
-                self.host.clone(),
-                i,
-                self.threads,
-            )));
+        if let Some(port) = self.listen_port {
+            let server = Server::new(port, self.host.clone(), self.threads, painter_output);
+            self.join_handles.push(spawn(move|| {
+                server.listen()
+            }))
+        } else {
+            let mut painter_inputs = Vec::new();
+            for i in 0..self.threads {
+                let (painter_input, painter_output) = sync_channel(self.channel_limit);
+                painter_inputs.push(painter_input);
+                self.join_handles.push(spawn(painter::get_painter(
+                    painter_output,
+                    self.host.clone(),
+                    i,
+                    self.threads,
+                )));
+            }
+            self.join_handles
+                .push(spawn(distributor::get_painter_distributor(
+                    painter_output,
+                    painter_inputs,
+                )));
         }
-        self.join_handles
-            .push(spawn(distributor::get_painter_distributor(
-                painter_output,
-                painter_inputs,
-            )));
     }
 
     fn start_check(&self) {

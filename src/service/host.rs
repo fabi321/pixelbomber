@@ -43,6 +43,10 @@ impl Host {
             return Err("No address found".to_string());
         }
         let port = url.port().ok_or_else(|| "No port specified".to_string())?;
+        Self::from_raw(addr, port, bind_addr)
+    }
+
+    pub fn from_raw(addr: Vec<IpAddr>, port: u16, bind_addr: Option<String>) -> Result<Host, String> {
         let bind: Option<IpAddr> = if let Some(v) = bind_addr {
             let bind_addr = IpAddr::from_str(&v).map_err(|e| e.to_string())?;
             if addr[0].is_ipv4() != bind_addr.is_ipv4() {
@@ -56,6 +60,7 @@ impl Host {
             None
         };
         Ok(Host { addr, port, bind })
+
     }
 
     pub fn new_stream(&self) -> io::Result<TcpStream> {
