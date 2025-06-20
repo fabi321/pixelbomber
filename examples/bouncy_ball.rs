@@ -11,7 +11,7 @@ use pixelbomber::{
     service::{Service, ServiceBuilder},
     Client,
 };
-use rand::{seq::SliceRandom, thread_rng};
+use rand::{seq::IndexedRandom, rng};
 
 const THREAD_COUNT: usize = 10;
 const TARGET: &str = "localhost:1234";
@@ -103,7 +103,7 @@ fn is_colliding(bouncy_ball: &BouncyBall, client: &mut Client) -> bool {
 }
 
 fn change_direction(bouncy_ball: &mut BouncyBall) {
-    let mut rng = thread_rng();
+    let mut rng = rng();
     let directions = vec![
         Direction::NorthEast,
         Direction::SouthEast,
