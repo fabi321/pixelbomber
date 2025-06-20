@@ -13,7 +13,7 @@ pub type Command = Vec<Vec<u8>>;
 pub type CommandLib = Vec<Arc<Command>>;
 
 pub use image::imageops::FilterType;
-
+use rand::rng;
 use crate::feature_detection::Features;
 
 /// Format for binary encoded images
@@ -305,7 +305,7 @@ fn shuffle_collect<T, F: Fn(&T) -> Option<&[u8]>>(
     conversion: F,
 ) -> Command {
     if config.shuffle {
-        let mut rng = SmallRng::from_entropy();
+        let mut rng = SmallRng::from_rng(&mut rng());
         input.shuffle(&mut rng)
     }
 

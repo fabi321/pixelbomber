@@ -1,6 +1,6 @@
 use net2::TcpBuilder;
-use rand::seq::SliceRandom;
-use rand::thread_rng;
+use rand::seq::IndexedRandom;
+use rand::{rng};
 use std::io;
 use std::net::{IpAddr, TcpStream};
 use std::str::FromStr;
@@ -72,7 +72,7 @@ impl Host {
         if let Some(bind) = self.bind {
             builder.bind((bind, 0u16))?;
         };
-        let addr = *self.addr.choose(&mut thread_rng()).unwrap();
+        let addr = *self.addr.choose(&mut rng()).unwrap();
         builder.connect((addr, self.port))
     }
 }
