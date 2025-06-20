@@ -1,12 +1,12 @@
 use std::error::Error;
 use std::io;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::net::{IpAddr, TcpListener, TcpStream};
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::thread::sleep;
 use std::time::Duration;
-use bincode::{decode_from_std_read, encode_to_vec, Decode, Encode};
+use bincode::{encode_to_vec, Decode, Encode};
 use bincode::config::standard;
 use log::warn;
 use crate::image_handler::Command;
@@ -28,18 +28,26 @@ struct Target {
 }
 
 fn read<R: Decode<()>>(stream: &mut TcpStream) -> Result<R, Box<dyn Error>> {
-    let result = decode_from_std_read(stream, standard())?;
+    let mut length = [0u8; 4];
+    stream.read_exact(&mut length)?;
+    let length = u32::from_be_bytes(length);
+    let mut data = vec![0u8; length as usize];
+    stream.read_exact(&mut data)?;
+    let decompressed = zstd::decode_all(&mut &data[..])?;
+    let (result, _) = bincode::decode_from_slice(&decompressed[..], standard())?;
     Ok(result)
 }
 
 // this write length encodes and ensures that everything or nothing is written
 fn write<S: Encode>(stream: &mut TcpStream, data: S) -> Result<(), Box<dyn Error>> {
     let encoded = encode_to_vec(data, standard())?;
-    match stream.write(&encoded[..]) {
-        Ok(n) if n == encoded.len() => Ok(()),
-        Ok(mut written) => {
-            while written != encoded.len() {
-                match stream.write(&encoded[written..]) {
+    let compressed = zstd::encode_all(&encoded[..], 3)?;
+    let length = (compressed.len() as u32).to_be_bytes();
+    match stream.write(&length[..]) {
+        Ok(n) if n == 4 => {
+            let mut written = 0;
+            while written != compressed.len() {
+                match stream.write(&compressed[written..]) {
                     Ok(n) => written += n,
                     Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {},
                     Err(e) => Err(e)?,
@@ -49,6 +57,7 @@ fn write<S: Encode>(stream: &mut TcpStream, data: S) -> Result<(), Box<dyn Error
         },
         Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => Ok(()),
         Err(e) => Err(e)?,
+        Ok(_) => panic!("Impossible to send less than 4 bytes"),
     }
 }
 
@@ -106,6 +115,7 @@ pub struct Client {
 impl Client {
     pub fn new(mod_host: Host, bind_addr: Option<String>) -> Result<Self, Box<dyn Error>> {
         let def: Target = read(&mut mod_host.new_stream()?)?;
+        println!("Connected to server, def:{:?}", def);
         Ok(Client {
             mod_host,
             target_host: Host::from_raw(def.addr, def.port, bind_addr)?,
@@ -117,7 +127,7 @@ impl Client {
         let mut stream = self.mod_host.new_stream().expect("Server Error");
         let _: Target = read(&mut stream).expect("Server Error");
         move |service: &mut Service | {
-            if let Ok(data) = decode_from_std_read(&mut stream, standard()) {
+            if let Ok(data) = read(&mut stream) {
                 let arced: Arc<Command> = Arc::new(data);
                 let _ = service.painter_input.as_ref().unwrap().try_send(arced);
             } else {
