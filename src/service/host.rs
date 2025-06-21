@@ -1,16 +1,18 @@
-use net2::TcpBuilder;
+use std::ffi::OsString;
 use rand::seq::IndexedRandom;
 use rand::{rng};
 use std::io;
-use std::net::{IpAddr, TcpStream};
+use std::net::{IpAddr, SocketAddr, TcpStream};
 use std::str::FromStr;
+use nix::sys::socket::{setsockopt, sockopt::BindToDevice};
+use socket2::{SockAddr, Domain, Socket, Type};
 use trust_dns_resolver::Resolver;
 use url::Url;
 
 #[derive(Clone, Debug)]
 pub struct Host {
     pub addr: Vec<IpAddr>,
-    pub bind: Option<IpAddr>,
+    pub bind: Option<String>,
     pub port: u16,
 }
 
@@ -46,33 +48,21 @@ impl Host {
         Self::from_raw(addr, port, bind_addr)
     }
 
-    pub fn from_raw(addr: Vec<IpAddr>, port: u16, bind_addr: Option<String>) -> Result<Host, String> {
-        let bind: Option<IpAddr> = if let Some(v) = bind_addr {
-            let bind_addr = IpAddr::from_str(&v).map_err(|e| e.to_string())?;
-            if addr[0].is_ipv4() != bind_addr.is_ipv4() {
-                return Err(
-                    "Host and bind address must be in the same address class (both v4 or both v6)"
-                        .to_string(),
-                );
-            }
-            Some(bind_addr)
-        } else {
-            None
-        };
+    pub fn from_raw(addr: Vec<IpAddr>, port: u16, bind: Option<String>) -> Result<Host, String> {
         Ok(Host { addr, port, bind })
 
     }
 
     pub fn new_stream(&self) -> io::Result<TcpStream> {
-        let builder = if self.addr[0].is_ipv4() {
-            TcpBuilder::new_v4()
-        } else {
-            TcpBuilder::new_v6()
-        }?;
-        if let Some(bind) = self.bind {
-            builder.bind((bind, 0u16))?;
-        };
         let addr = *self.addr.choose(&mut rng()).unwrap();
-        builder.connect((addr, self.port))
+        let socket_addr = SocketAddr::new(addr, self.port);
+        let socket = Socket::new(Domain::for_address(socket_addr), Type::STREAM, None)?;
+        if let Some(bind) = &self.bind {
+            let name = OsString::from(bind);
+            setsockopt(&socket, BindToDevice, &name)
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        };
+        socket.connect(&SockAddr::from(socket_addr))?;
+        Ok(socket.into())
     }
 }
