@@ -13,7 +13,7 @@ mod manager;
 
 fn main() {
     env_logger::init();
-    let args = arg_handler::parse();
+    let mut args = arg_handler::parse();
     let mut image_config = image_handler::ImageConfig {
         width: args.width,
         height: args.height,
@@ -33,7 +33,10 @@ fn main() {
         return;
     }
 
-    let mut host = Host::new(&args.host, args.bind_addr.clone()).unwrap();
+    let mut host = Host::new(
+        &args.host,
+        if args.listen_manager {None} else {args.bind_addr.take()}
+    ).unwrap();
     if args.le_rgba {
         image_config.binary = Some(BinaryFormat::CoordLERGBA)
     }
