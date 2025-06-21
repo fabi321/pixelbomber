@@ -22,18 +22,21 @@ pub fn get_painter(
     move || {
         let mut current_commands = source.recv().unwrap();
         loop {
-            if let Ok(stream) = host.new_stream() {
-                let client = Client::new(stream);
-                current_commands =
-                    painter(&source, client, painter_id, max_frame, current_commands);
-                // this might discard an animation frame, if the connection is dropped, and it is an
-                // ongoing animation, but that is mostly irrelevant, since there will be new
-                // frames later, and the connection is timed out anyway
-                if let Err(TryRecvError::Disconnected) = source.try_recv() {
-                    break;
+            match host.new_stream() {
+                Ok(stream) => {
+                    let client = Client::new(stream);
+                    current_commands =
+                        painter(&source, client, painter_id, max_frame, current_commands);
+                    // this might discard an animation frame, if the connection is dropped, and it is an
+                    // ongoing animation, but that is mostly irrelevant, since there will be new
+                    // frames later, and the connection is timed out anyway
+                    if let Err(TryRecvError::Disconnected) = source.try_recv() {
+                        break;
+                    }
                 }
-            } else {
-                warn!("Could not connect to host!");
+                Err(err) => {
+                    warn!("Could not connect to host! ({err:?})");
+                }
             }
             warn!("Thread stopped working, restarting");
             sleep(Duration::from_secs(5))
