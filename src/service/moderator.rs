@@ -6,9 +6,9 @@ use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::thread::sleep;
 use std::time::Duration;
-use bincode::{encode_to_vec, Decode, Encode};
-use bincode::config::standard;
 use log::warn;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use crate::image_handler::Command;
 use crate::service::{Host, Service};
 
@@ -20,27 +20,27 @@ pub struct Server {
     data: Receiver<Arc<Command>>
 }
 
-#[derive(Decode, Encode, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Target {
     addr: Vec<IpAddr>,
     port: u16,
     threads: usize,
 }
 
-fn read<R: Decode<()>>(stream: &mut TcpStream) -> Result<R, Box<dyn Error>> {
+fn read<R: DeserializeOwned>(stream: &mut TcpStream) -> Result<R, Box<dyn Error>> {
     let mut length = [0u8; 4];
     stream.read_exact(&mut length)?;
     let length = u32::from_be_bytes(length);
     let mut data = vec![0u8; length as usize];
     stream.read_exact(&mut data)?;
     let decompressed = zstd::decode_all(&mut &data[..])?;
-    let (result, _) = bincode::decode_from_slice(&decompressed[..], standard())?;
+    let result = postcard::from_bytes(&decompressed[..])?;
     Ok(result)
 }
 
 // this write length encodes and ensures that everything or nothing is written
-fn write<S: Encode>(stream: &mut TcpStream, data: S) -> Result<(), Box<dyn Error>> {
-    let encoded = encode_to_vec(data, standard())?;
+fn write<S: Serialize>(stream: &mut TcpStream, data: S) -> Result<(), Box<dyn Error>> {
+    let encoded = postcard::to_stdvec(&data)?;
     let compressed = zstd::encode_all(&encoded[..], 3)?;
     let length = (compressed.len() as u32).to_be_bytes();
     match stream.write(&length[..]) {

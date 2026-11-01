@@ -1,11 +1,11 @@
 use std::{
     collections::HashMap,
+    sync::LazyLock,
     thread::sleep,
     time::{Duration, Instant},
 };
 
 use image::DynamicImage;
-use lazy_static::lazy_static;
 use pixelbomber::{
     image_handler::ImageConfigBuilder,
     service::{Service, ServiceBuilder},
@@ -56,9 +56,8 @@ fn get_collision_points() -> HashMap<Direction, Vec<(u32, u32)>> {
     points_map
 }
 
-lazy_static! {
-    static ref COLLISION_POINTS: HashMap<Direction, Vec<(u32, u32)>> = get_collision_points();
-}
+static COLLISION_POINTS: LazyLock<HashMap<Direction, Vec<(u32, u32)>>> =
+    LazyLock::new(get_collision_points);
 
 struct Ball {
     width: u32,

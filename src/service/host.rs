@@ -2,11 +2,10 @@ use std::ffi::OsString;
 use rand::seq::IndexedRandom;
 use rand::{rng};
 use std::io;
-use std::net::{IpAddr, SocketAddr, TcpStream};
+use std::net::{IpAddr, SocketAddr, TcpStream, ToSocketAddrs};
 use std::str::FromStr;
 use nix::sys::socket::{setsockopt, sockopt::BindToDevice};
 use socket2::{SockAddr, Domain, Socket, Type};
-use trust_dns_resolver::Resolver;
 use url::Url;
 
 #[derive(Clone, Debug)]
@@ -25,18 +24,19 @@ impl Host {
             .host_str()
             .ok_or_else(|| "No host specified".to_string())?;
         let host = host.trim_start_matches('[').trim_end_matches(']');
+        let port = url.port().ok_or_else(|| "No port specified".to_string())?;
         let addr: Vec<_> = if let Ok(res) = IpAddr::from_str(host) {
             vec![res]
         } else {
-            let resolver = Resolver::default().map_err(|err| err.to_string())?;
-            let addr: Vec<_> = resolver
-                .lookup_ip(host)
+            // uses the system resolver, so /etc/hosts and local DNS servers are respected
+            let addr: Vec<_> = (host, port)
+                .to_socket_addrs()
                 .map_err(|err| err.to_string())?
-                .iter()
+                .map(|a| a.ip())
                 .collect();
-            // if ipv6 is available, only use ipv6
-            if addr.iter().any(|a| a.is_ipv6()) {
-                addr.into_iter().filter(|a| a.is_ipv6()).collect()
+            // if ipv4 is available, only use ipv4 (the manager only listens on ipv4)
+            if addr.iter().any(|a| a.is_ipv4()) {
+                addr.into_iter().filter(|a| a.is_ipv4()).collect()
             } else {
                 addr
             }
@@ -44,7 +44,6 @@ impl Host {
         if addr.is_empty() {
             return Err("No address found".to_string());
         }
-        let port = url.port().ok_or_else(|| "No port specified".to_string())?;
         Self::from_raw(addr, port, bind_addr)
     }
 

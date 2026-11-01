@@ -73,7 +73,7 @@ pub fn load_from_video(path: &str, config: ImageConfig, workers: usize) -> Optio
         }))
     }
     let mut frame = 0;
-    let mut system = System::new();
+    let mut system = System::new().expect("Unable to query system memory");
     for bmp_data in reader {
         system.refresh_memory();
         if system.available_memory() < 1_000_000_000 {
